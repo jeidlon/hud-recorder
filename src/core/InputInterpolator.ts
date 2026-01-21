@@ -24,15 +24,11 @@ export class InputInterpolator {
    * @param timestamp - 밀리초 단위 타임스탬프
    */
   getStateAtTime(timestamp: number): FrameState {
-    // 1. HUD 상태 로그에서 가장 가까운 상태 찾기
-    const hudState = this.findNearestHUDState(timestamp)
+    // 1. HUD 상태 로그에서 보간된 상태 가져오기
+    const interpolatedState = this.interpolateHUDState(timestamp)
 
-    if (hudState) {
-      return {
-        mouse: hudState.mouse,
-        targets: hudState.targets,
-        customData: hudState.customData,
-      }
+    if (interpolatedState) {
+      return interpolatedState
     }
 
     // 2. HUD 상태가 없으면 Input 로그에서 마우스 위치 보간
@@ -43,27 +39,92 @@ export class InputInterpolator {
     }
   }
 
-  private findNearestHUDState(timestamp: number): HUDStateSnapshot | null {
+  /**
+   * HUD 상태 로그에서 선형 보간
+   * 마우스 위치를 부드럽게 연결
+   */
+  private interpolateHUDState(timestamp: number): FrameState | null {
     if (this.hudStateLog.length === 0) return null
 
-    // 이진 탐색으로 가장 가까운 상태 찾기
+    // 이진 탐색으로 timestamp 이전/이후 상태 찾기
+    let beforeIdx = -1
+    let afterIdx = -1
+
+    // 이진 탐색으로 timestamp 직전 상태 찾기
     let left = 0
     let right = this.hudStateLog.length - 1
 
-    while (left < right) {
+    while (left <= right) {
       const mid = Math.floor((left + right) / 2)
-      if (this.hudStateLog[mid].timestamp < timestamp) {
+      if (this.hudStateLog[mid].timestamp <= timestamp) {
+        beforeIdx = mid
         left = mid + 1
       } else {
-        right = mid
+        right = mid - 1
       }
     }
 
-    // timestamp 이전의 가장 가까운 상태 반환
-    if (left > 0 && this.hudStateLog[left].timestamp > timestamp) {
-      return this.hudStateLog[left - 1]
+    // 이후 상태
+    afterIdx = beforeIdx + 1
+
+    // 경계 조건 처리
+    if (beforeIdx < 0) {
+      // timestamp가 첫 상태보다 이전
+      const state = this.hudStateLog[0]
+      return {
+        mouse: state.mouse,
+        targets: state.targets,
+        customData: state.customData,
+      }
     }
-    return this.hudStateLog[left]
+
+    if (afterIdx >= this.hudStateLog.length) {
+      // timestamp가 마지막 상태 이후
+      const state = this.hudStateLog[this.hudStateLog.length - 1]
+      return {
+        mouse: state.mouse,
+        targets: state.targets,
+        customData: state.customData,
+      }
+    }
+
+    // 선형 보간
+    const before = this.hudStateLog[beforeIdx]
+    const after = this.hudStateLog[afterIdx]
+    
+    const t = (timestamp - before.timestamp) / (after.timestamp - before.timestamp)
+    
+    // 마우스 위치 보간
+    const interpolatedMouse = {
+      x: before.mouse.x + (after.mouse.x - before.mouse.x) * t,
+      y: before.mouse.y + (after.mouse.y - before.mouse.y) * t,
+      buttons: before.mouse.buttons, // 버튼 상태는 보간하지 않음
+    }
+
+    // targets 보간
+    let interpolatedTargets: Record<string, { x: number; y: number; locked: boolean }> | undefined
+    
+    if (before.targets && after.targets) {
+      interpolatedTargets = {}
+      for (const key of Object.keys(before.targets)) {
+        if (after.targets[key]) {
+          interpolatedTargets[key] = {
+            x: before.targets[key].x + (after.targets[key].x - before.targets[key].x) * t,
+            y: before.targets[key].y + (after.targets[key].y - before.targets[key].y) * t,
+            locked: before.targets[key].locked, // locked 상태는 보간하지 않음
+          }
+        }
+      }
+    } else {
+      interpolatedTargets = before.targets
+    }
+
+    // customData는 이전 상태 사용 (보간 불가)
+    return {
+      mouse: interpolatedMouse,
+      targets: interpolatedTargets,
+      customData: before.customData,
+    }
   }
 
   private interpolateMousePosition(timestamp: number): {
