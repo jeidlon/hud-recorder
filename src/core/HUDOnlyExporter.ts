@@ -11,28 +11,36 @@ export interface HUDExportCallbacks {
 
 /**
  * HUD만 투명 배경으로 PNG 시퀀스 출력
+ * @param session - 녹화 세션
+ * @param callbacks - 콜백
+ * @param scale - 해상도 스케일 (기본 2x, 고해상도 출력)
  */
 export async function exportHUDToPNGSequence(
   session: RecordingSession,
-  callbacks: HUDExportCallbacks
+  callbacks: HUDExportCallbacks,
+  scale: number = 2 // 기본 2x 해상도 (확대해도 선명)
 ): Promise<void> {
   const { videoInfo, inputLog, hudStateLog, duration, hudInfo } = session
-  const { width, height, fps } = videoInfo
+  const { width: baseWidth, height: baseHeight, fps } = videoInfo
+
+  // 고해상도 출력을 위한 스케일 적용
+  const width = Math.round(baseWidth * scale)
+  const height = Math.round(baseHeight * scale)
 
   // HUD URL에서 프리셋 ID 추출
   const hudUrl = hudInfo?.url || ''
   const presetId = hudUrl.startsWith('__inline__:') 
     ? hudUrl.replace('__inline__:', '') 
     : 'target-lock'
-  console.log(`PNG Export using HUD preset: ${presetId}`)
+  console.log(`PNG Export using HUD preset: ${presetId}, scale: ${scale}x (${width}x${height})`)
 
   // 입력 보간기 생성
   const interpolator = new InputInterpolator(inputLog, hudStateLog)
 
-  // HUD 렌더러 생성 (프리셋 ID 전달!)
-  const hudRenderer = new OfflineHUDRenderer({ width, height, presetId })
+  // HUD 렌더러 생성 (스케일된 해상도!)
+  const hudRenderer = new OfflineHUDRenderer({ width, height, presetId, scale })
 
-  // 프레임별 상태 계산
+  // 프레임별 상태 계산 (좌표 스케일은 렌더러 내부에서 처리)
   const frameStates = interpolator.generateFrameStates(fps, duration)
   const totalFrames = frameStates.length
 

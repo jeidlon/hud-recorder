@@ -28,6 +28,7 @@ export interface HUDRendererConfig {
   width: number
   height: number
   presetId?: string
+  scale?: number // 고해상도 출력을 위한 스케일 (기본 1)
 }
 
 /**
@@ -39,9 +40,11 @@ export class OfflineHUDRenderer {
   private ctx: OffscreenCanvasRenderingContext2D
   private config: HUDRendererConfig
   private frameIndex = 0
+  private scale: number
 
   constructor(config: HUDRendererConfig) {
     this.config = config
+    this.scale = config.scale || 1
     this.canvas = new OffscreenCanvas(config.width, config.height)
 
     const ctx = this.canvas.getContext('2d', { alpha: true })
@@ -49,6 +52,11 @@ export class OfflineHUDRenderer {
       throw new Error('Failed to create 2D context')
     }
     this.ctx = ctx
+    
+    // 고해상도 출력을 위해 컨텍스트 스케일 적용
+    if (this.scale !== 1) {
+      ctx.scale(this.scale, this.scale)
+    }
   }
 
   /**
@@ -70,7 +78,9 @@ export class OfflineHUDRenderer {
    * DreamPersona HUD 렌더링 - 공유 드로잉 함수 사용
    */
   private renderDreamPersona(state: FrameState): OffscreenCanvas {
-    const { width, height } = this.config
+    // 스케일된 해상도가 아닌 논리적 해상도 사용 (ctx.scale 적용됨)
+    const width = this.config.width / this.scale
+    const height = this.config.height / this.scale
     const ctx = this.ctx
     const time = this.frameIndex / 60
 
@@ -164,7 +174,9 @@ export class OfflineHUDRenderer {
    * Target Lock HUD 렌더링 (기본)
    */
   private renderTargetLock(state: FrameState): OffscreenCanvas {
-    const { width, height } = this.config
+    // 스케일된 해상도가 아닌 논리적 해상도 사용 (ctx.scale 적용됨)
+    const width = this.config.width / this.scale
+    const height = this.config.height / this.scale
     const ctx = this.ctx
 
     ctx.clearRect(0, 0, width, height)
