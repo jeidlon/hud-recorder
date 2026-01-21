@@ -6,19 +6,198 @@
 
 ## 📋 목차
 
-1. [기본 구조](#1-기본-구조)
-2. [통신 프로토콜](#2-통신-프로토콜)
-3. [필수 구현 사항](#3-필수-구현-사항)
-4. [상태 업데이트 규칙](#4-상태-업데이트-규칙)
-5. [렌더링 최적화](#5-렌더링-최적화)
-6. [키보드/마우스 이벤트](#6-키보드마우스-이벤트)
-7. [스타일 가이드](#7-스타일-가이드)
-8. [테스트 체크리스트](#8-테스트-체크리스트)
-9. [예제 템플릿](#9-예제-템플릿)
+1. [내장 프리셋 추가 (권장)](#1-내장-프리셋-추가-권장)
+2. [기본 구조 (iframe 방식)](#2-기본-구조-iframe-방식)
+3. [통신 프로토콜](#3-통신-프로토콜)
+4. [필수 구현 사항](#4-필수-구현-사항)
+5. [상태 업데이트 규칙](#5-상태-업데이트-규칙)
+6. [렌더링 최적화](#6-렌더링-최적화)
+7. [키보드/마우스 이벤트](#7-키보드마우스-이벤트)
+8. [스타일 가이드](#8-스타일-가이드)
+9. [테스트 체크리스트](#9-테스트-체크리스트)
+10. [예제 템플릿](#10-예제-템플릿)
 
 ---
 
-## 1. 기본 구조
+## 1. 내장 프리셋 추가 (권장)
+
+> 🎯 **가장 쉬운 방법!** 미리보기와 실제 HUD에서 같은 컴포넌트가 사용됩니다.
+
+### 📁 파일 구조
+
+```
+src/presets/
+├── index.ts           ← 프리셋 레지스트리 (여기서 등록)
+├── TargetLockHUD.tsx  ← Target Lock HUD
+└── MyNewHUD.tsx       ← 새로 만들 HUD
+```
+
+### Step 1️⃣ HUD 컴포넌트 만들기
+
+```tsx
+// src/presets/MyNewHUD.tsx
+import { useEffect, useRef, useCallback, useState } from 'react'
+import type { HUDComponentProps } from './index'
+
+/**
+ * 새로운 HUD 컴포넌트
+ * 
+ * Props:
+ * - width, height: 비디오 해상도
+ * - isPlaying: 재생 상태
+ * - onStateUpdate: 상태 변경 시 호출
+ * - onReady: 초기화 완료 시 호출
+ */
+export function MyNewHUD({
+  width,
+  height,
+  onStateUpdate,
+  onReady,
+}: HUDComponentProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [mousePos, setMousePos] = useState({ x: width / 2, y: height / 2 })
+  const hasCalledReady = useRef(false)
+
+  // 초기화 완료 알림 (한 번만)
+  useEffect(() => {
+    if (!hasCalledReady.current && onReady) {
+      hasCalledReady.current = true
+      onReady()
+    }
+  }, [])
+
+  // 마우스 이벤트
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * width
+    const y = ((e.clientY - rect.top) / rect.height) * height
+    setMousePos({ x, y })
+  }, [width, height])
+
+  // Canvas 렌더링
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let animId: number
+
+    const render = () => {
+      ctx.clearRect(0, 0, width, height)
+
+      // 여기에 렌더링 로직 작성
+      ctx.fillStyle = '#00ff00'
+      ctx.beginPath()
+      ctx.arc(mousePos.x, mousePos.y, 20, 0, Math.PI * 2)
+      ctx.fill()
+
+      // 상태 업데이트 (녹화용)
+      onStateUpdate?.({
+        timestamp: performance.now(),
+        mouse: { x: mousePos.x, y: mousePos.y, buttons: 0 },
+        customData: { /* 커스텀 데이터 */ }
+      })
+
+      animId = requestAnimationFrame(render)
+    }
+
+    render()
+    return () => cancelAnimationFrame(animId)
+  }, [width, height, mousePos, onStateUpdate])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={width}
+      height={height}
+      onMouseMove={handleMouseMove}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'auto',
+        cursor: 'crosshair',
+      }}
+    />
+  )
+}
+```
+
+### Step 2️⃣ 레지스트리에 등록
+
+```tsx
+// src/presets/index.ts
+import { ComponentType } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import { Crosshair, Clock, Heart } from 'lucide-react'  // 아이콘 추가
+import { TargetLockHUD } from './TargetLockHUD'
+import { MyNewHUD } from './MyNewHUD'  // 👈 import 추가
+import type { HUDState } from '@/types/hud-protocol'
+
+// HUD 컴포넌트 Props 인터페이스
+export interface HUDComponentProps {
+  width: number
+  height: number
+  isPlaying?: boolean
+  onStateUpdate?: (state: HUDState) => void
+  onReady?: () => void
+}
+
+// 프리셋 정의
+export interface HUDPreset {
+  id: string
+  name: string
+  description: string
+  icon: LucideIcon
+  component: ComponentType<HUDComponentProps> | null
+  available: boolean
+}
+
+// 👇 여기에 등록!
+export const hudPresets: HUDPreset[] = [
+  {
+    id: 'target-lock',
+    name: 'Target Lock',
+    description: '크로스헤어 + 타겟 락온',
+    icon: Crosshair,
+    component: TargetLockHUD,
+    available: true,
+  },
+  // ✨ 새 프리셋 추가!
+  {
+    id: 'my-new-hud',
+    name: 'My New HUD',
+    description: '새로운 HUD 설명',
+    icon: Heart,            // lucide-react 아이콘
+    component: MyNewHUD,    // 위에서 만든 컴포넌트
+    available: true,
+  },
+  // Coming Soon (비활성화 예시)
+  {
+    id: 'coming-soon',
+    name: 'Coming Soon...',
+    description: '새로운 HUD 준비 중',
+    icon: Clock,
+    component: null,
+    available: false,
+  },
+]
+```
+
+### ✅ 끝!
+
+- 프리셋 선택 UI에 자동으로 표시됨
+- 미리보기 버튼 자동 활성화
+- 실제 HUD와 미리보기가 동일한 컴포넌트 사용
+
+---
+
+## 2. 기본 구조 (iframe 방식)
+
+> 외부 앱을 iframe으로 연결하는 방식. 기존 앱을 재사용하거나 별도 도메인에서 호스팅할 때 유용.
 
 ### HUD 앱은 독립적인 웹 앱입니다
 
@@ -56,7 +235,7 @@
 
 ---
 
-## 2. 통신 프로토콜
+## 3. 통신 프로토콜
 
 ### 메인 앱 → HUD 앱 메시지
 
@@ -110,7 +289,7 @@ interface HUDState {
 
 ---
 
-## 3. 필수 구현 사항
+## 4. 필수 구현 사항
 
 ### ✅ 반드시 구현해야 하는 것들
 
@@ -163,7 +342,7 @@ function sendStateUpdate(state: HUDState) {
 
 ---
 
-## 4. 상태 업데이트 규칙
+## 5. 상태 업데이트 규칙
 
 ### 업데이트 빈도
 
@@ -215,7 +394,7 @@ const state = {
 
 ---
 
-## 5. 렌더링 최적화
+## 6. 렌더링 최적화
 
 ### Canvas 기반 HUD (권장)
 
@@ -279,7 +458,7 @@ useEffect(() => {
 
 ---
 
-## 6. 키보드/마우스 이벤트
+## 7. 키보드/마우스 이벤트
 
 ### 키보드 단축키 처리
 
@@ -327,7 +506,7 @@ const handleClick = (e: MouseEvent) => {
 
 ---
 
-## 7. 스타일 가이드
+## 8. 스타일 가이드
 
 ### 필수 CSS
 
@@ -391,7 +570,7 @@ html, body {
 
 ---
 
-## 8. 테스트 체크리스트
+## 9. 테스트 체크리스트
 
 ### 개발 중
 
@@ -419,7 +598,7 @@ html, body {
 
 ---
 
-## 9. 예제 템플릿
+## 10. 예제 템플릿
 
 ### 최소 템플릿 (Vanilla JS)
 
