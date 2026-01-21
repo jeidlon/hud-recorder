@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Play, Pause, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -66,14 +66,21 @@ export function VideoPlayer({
     onMetadata(w, h, d, fps)
   }
 
-  const handleTimeUpdate = () => {
+  // 시간 업데이트 스로틀링 (100ms 간격으로 제한)
+  const lastTimeUpdateRef = useRef(0)
+  const handleTimeUpdate = useCallback(() => {
     const video = videoRef.current
     if (!video) return
+
+    const now = performance.now()
+    // 100ms 이내면 스킵 (10fps 업데이트로 제한)
+    if (now - lastTimeUpdateRef.current < 100) return
+    lastTimeUpdateRef.current = now
 
     const time = video.currentTime * 1000 // ms로 변환
     setCurrentTime(time)
     onTimeUpdate(time)
-  }
+  }, [onTimeUpdate])
 
   const handleEnded = () => {
     onPlayingChange(false)
@@ -110,6 +117,10 @@ export function VideoPlayer({
           onEnded={handleEnded}
           onClick={() => onPlayingChange(!isPlaying)}
           className="w-full h-full object-contain bg-black cursor-pointer"
+          style={{ 
+            willChange: 'contents',
+            transform: 'translateZ(0)', // GPU 레이어 강제 생성
+          }}
           playsInline
           muted={false}
         />

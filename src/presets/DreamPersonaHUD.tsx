@@ -122,6 +122,9 @@ export function DreamPersonaHUD({
   const hasCalledReady = useRef(false)
   const onStateUpdateRef = useRef(onStateUpdate)
   onStateUpdateRef.current = onStateUpdate
+  
+  // 상태 업데이트 스로틀링 (100ms 간격)
+  const lastStateUpdateRef = useRef(0)
 
   // 마우스 상태
   const [mousePos, setMousePos] = useState({ x: width / 2, y: height / 2 })
@@ -169,6 +172,11 @@ export function DreamPersonaHUD({
 
   // 글로벌 타이머 (애니메이션용)
   const [time, setTime] = useState(0)
+
+  // 성능 최적화: 저사양 모드
+  const [performanceMode, setPerformanceMode] = useState<'high' | 'low'>('high')
+  const lastFrameTime = useRef(0)
+  const frameInterval = performanceMode === 'low' ? 1000 / 30 : 1000 / 60 // 30fps vs 60fps
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 초기화
@@ -234,6 +242,16 @@ export function DreamPersonaHUD({
             setStats(s => ({ ...s, hp: 28 }))
             break
         }
+      }
+
+      // Q 키: 성능 모드 토글
+      // Q 키: 성능 모드 토글
+      if (e.code === 'KeyQ') {
+        setPerformanceMode(prev => {
+          const newMode = prev === 'high' ? 'low' : 'high'
+          console.log(`[HUD] 성능 모드: ${newMode === 'high' ? '고성능 (60fps)' : '저사양 (30fps)'}`)
+          return newMode
+        })
       }
 
       // Space: 공격
@@ -338,18 +356,33 @@ export function DreamPersonaHUD({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const render = () => {
+    const render = (timestamp: number) => {
+      // 프레임 제한: 지정된 간격보다 짧으면 스킵
+      const elapsed = timestamp - lastFrameTime.current
+      if (elapsed < frameInterval) {
+        animationRef.current = requestAnimationFrame(render)
+        return
+      }
+      lastFrameTime.current = timestamp - (elapsed % frameInterval)
+
       ctx.clearRect(0, 0, width, height)
 
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // Curved Screen 효과 (비네팅)
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      drawCurvedScreenEffect(ctx, width, height)
+      // 저사양 모드 플래그
+      const isLowPerf = performanceMode === 'low'
 
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // 스캔라인 효과
+      // Curved Screen 효과 (비네팅) - 저사양 모드에서 간소화
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      drawScanlines(ctx, width, height, time)
+      if (!isLowPerf) {
+        drawCurvedScreenEffect(ctx, width, height)
+      }
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // 스캔라인 효과 - 저사양 모드에서 비활성화
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      if (!isLowPerf) {
+        drawScanlines(ctx, width, height, time)
+      }
 
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // 메인 HUD 요소들
@@ -400,27 +433,39 @@ export function DreamPersonaHUD({
       // 하단: 키 힌트
       drawKeyHints(ctx, width, height)
 
-      // 상태 업데이트
-      onStateUpdateRef.current?.({
-        timestamp: performance.now(),
-        mouse: { x: mousePos.x, y: mousePos.y, buttons: isMouseDown ? 1 : 0 },
-        targets: {
-          main: { x: isLocked ? lockedPos.x : mousePos.x, y: isLocked ? lockedPos.y : mousePos.y, locked: isLocked },
-        },
-        customData: {
-          scenario,
-          stats,
-          enemy,
-          lockProgress,
-        }
-      })
+      // 상태 업데이트 (스로틀링: 100ms 간격)
+      const now = performance.now()
+      if (now - lastStateUpdateRef.current >= 100) {
+        lastStateUpdateRef.current = now
+        onStateUpdateRef.current?.({
+          timestamp: now,
+          mouse: { x: mousePos.x, y: mousePos.y, buttons: isMouseDown ? 1 : 0 },
+          targets: {
+            main: { x: isLocked ? lockedPos.x : mousePos.x, y: isLocked ? lockedPos.y : mousePos.y, locked: isLocked },
+          },
+          customData: {
+            scenario,
+            stats,
+            enemy,
+            lockProgress,
+          }
+        })
+      }
+
+      // 성능 모드 표시 (우하단)
+      ctx.save()
+      ctx.font = '10px monospace'
+      ctx.fillStyle = performanceMode === 'low' ? '#FFAA00' : '#00FF88'
+      ctx.textAlign = 'right'
+      ctx.fillText(`[Q] ${performanceMode === 'low' ? '저사양 30fps' : '고성능 60fps'}`, width - 20, height - 60)
+      ctx.restore()
 
       animationRef.current = requestAnimationFrame(render)
     }
 
-    render()
+    animationRef.current = requestAnimationFrame(render)
     return () => cancelAnimationFrame(animationRef.current)
-  }, [width, height, mousePos, scenario, stats, enemy, isLocked, lockedPos, lockProgress, attackCooldown, damageIndicators, levelUpTimer, time, isMouseDown])
+  }, [width, height, mousePos, scenario, stats, enemy, isLocked, lockedPos, lockProgress, attackCooldown, damageIndicators, levelUpTimer, time, isMouseDown, performanceMode, frameInterval])
 
   return (
     <canvas
@@ -441,6 +486,10 @@ export function DreamPersonaHUD({
         pointerEvents: 'auto',
         cursor: scenario === 'target_lock' ? 'crosshair' : 'default',
         outline: 'none',
+        // GPU 가속 최적화
+        willChange: 'transform',
+        transform: 'translateZ(0)',
+        backfaceVisibility: 'hidden',
       }}
     />
   )
