@@ -16,14 +16,21 @@ export async function exportHUDToPNGSequence(
   session: RecordingSession,
   callbacks: HUDExportCallbacks
 ): Promise<void> {
-  const { videoInfo, inputLog, hudStateLog, duration } = session
+  const { videoInfo, inputLog, hudStateLog, duration, hudInfo } = session
   const { width, height, fps } = videoInfo
+
+  // HUD URL에서 프리셋 ID 추출
+  const hudUrl = hudInfo?.url || ''
+  const presetId = hudUrl.startsWith('__inline__:') 
+    ? hudUrl.replace('__inline__:', '') 
+    : 'target-lock'
+  console.log(`PNG Export using HUD preset: ${presetId}`)
 
   // 입력 보간기 생성
   const interpolator = new InputInterpolator(inputLog, hudStateLog)
 
-  // HUD 렌더러 생성
-  const hudRenderer = new OfflineHUDRenderer({ width, height })
+  // HUD 렌더러 생성 (프리셋 ID 전달!)
+  const hudRenderer = new OfflineHUDRenderer({ width, height, presetId })
 
   // 프레임별 상태 계산
   const frameStates = interpolator.generateFrameStates(fps, duration)
@@ -85,8 +92,15 @@ export async function exportHUDToWebMAlpha(
   session: RecordingSession,
   callbacks: HUDExportCallbacks
 ): Promise<void> {
-  const { videoInfo, inputLog, hudStateLog, duration } = session
+  const { videoInfo, inputLog, hudStateLog, duration, hudInfo } = session
   const { width, height, fps } = videoInfo
+
+  // HUD URL에서 프리셋 ID 추출
+  const hudUrl = hudInfo?.url || ''
+  const presetId = hudUrl.startsWith('__inline__:') 
+    ? hudUrl.replace('__inline__:', '') 
+    : 'target-lock'
+  console.log(`WebM Export using HUD preset: ${presetId}`)
 
   // VP9 알파 지원 확인
   const config: VideoEncoderConfig = {
@@ -113,8 +127,8 @@ export async function exportHUDToWebMAlpha(
   // 입력 보간기 생성
   const interpolator = new InputInterpolator(inputLog, hudStateLog)
 
-  // HUD 렌더러 생성
-  const hudRenderer = new OfflineHUDRenderer({ width, height })
+  // HUD 렌더러 생성 (프리셋 ID 전달!)
+  const hudRenderer = new OfflineHUDRenderer({ width, height, presetId })
 
   // 프레임별 상태 계산
   const frameStates = interpolator.generateFrameStates(fps, duration)
