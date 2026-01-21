@@ -37,6 +37,7 @@ export async function exportHUDToPNGSequence(
   const totalFrames = frameStates.length
 
   console.log(`Exporting ${totalFrames} HUD frames as PNG sequence...`)
+  const startTime = performance.now()
 
   // ZIP 파일 생성
   const zip = new JSZip()
@@ -47,38 +48,56 @@ export async function exportHUDToPNGSequence(
     return
   }
 
-  // 각 프레임을 PNG로 변환
-  for (let i = 0; i < totalFrames; i++) {
-    const state = frameStates[i]
-
-    // HUD 렌더링 (투명 배경)
-    const hudCanvas = hudRenderer.render(state)
-
-    // OffscreenCanvas → Blob (PNG)
-    const blob = await hudCanvas.convertToBlob({ type: 'image/png' })
-
-    // 파일명: frame_00001.png 형식
-    const frameName = `frame_${String(i + 1).padStart(5, '0')}.png`
-    folder.file(frameName, blob)
-
-    // 진행률 업데이트
-    const progress = ((i + 1) / totalFrames) * 100
-    callbacks.onProgress(progress, i + 1, totalFrames)
-
-    // UI 업데이트를 위한 yield (매 30프레임마다)
-    if (i % 30 === 0) {
-      await new Promise((r) => setTimeout(r, 0))
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 배치 병렬 처리 (한 번에 BATCH_SIZE 프레임씩 처리)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const BATCH_SIZE = 10 // 동시에 처리할 프레임 수
+  
+  for (let batchStart = 0; batchStart < totalFrames; batchStart += BATCH_SIZE) {
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, totalFrames)
+    
+    // 배치 내 프레임들을 병렬로 렌더링 + PNG 변환
+    const batchPromises: Promise<{ name: string; blob: Blob }>[] = []
+    
+    for (let i = batchStart; i < batchEnd; i++) {
+      const state = frameStates[i]
+      const frameName = `frame_${String(i + 1).padStart(5, '0')}.png`
+      
+      // HUD 렌더링 (동기)
+      const hudCanvas = hudRenderer.render(state)
+      
+      // PNG 변환은 Promise로 (비동기 병렬)
+      const pngPromise = hudCanvas.convertToBlob({ type: 'image/png' })
+        .then(blob => ({ name: frameName, blob }))
+      
+      batchPromises.push(pngPromise)
     }
+    
+    // 배치 완료 대기
+    const batchResults = await Promise.all(batchPromises)
+    
+    // ZIP에 추가
+    for (const { name, blob } of batchResults) {
+      folder.file(name, blob)
+    }
+    
+    // 진행률 업데이트
+    const progress = (batchEnd / totalFrames) * 100
+    callbacks.onProgress(progress, batchEnd, totalFrames)
+    
+    // UI 업데이트를 위한 yield
+    await new Promise((r) => setTimeout(r, 0))
   }
 
   hudRenderer.destroy()
+  
+  const renderTime = ((performance.now() - startTime) / 1000).toFixed(1)
+  console.log(`Rendering complete in ${renderTime}s. Creating ZIP...`)
 
-  // ZIP 생성
-  console.log('Creating ZIP file...')
+  // ZIP 생성 (PNG는 이미 압축되어 있으므로 STORE 모드 사용 - 더 빠름!)
   const zipBlob = await zip.generateAsync({
     type: 'blob',
-    compression: 'DEFLATE',
-    compressionOptions: { level: 6 },
+    compression: 'STORE', // 무압축 - PNG는 이미 압축됨!
   })
 
   console.log(`PNG sequence exported: ${(zipBlob.size / 1024 / 1024).toFixed(2)} MB`)
