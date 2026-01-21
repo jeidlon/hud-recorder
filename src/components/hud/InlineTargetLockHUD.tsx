@@ -17,10 +17,11 @@ interface InlineTargetLockHUDProps {
 export function InlineTargetLockHUD({
   width,
   height,
-  isPlaying,
+  isPlaying: _isPlaying,
   onStateUpdate,
   onReady,
 }: InlineTargetLockHUDProps) {
+  void _isPlaying // 향후 재생 상태에 따른 동작 추가 가능
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [mousePos, setMousePos] = useState({ x: width / 2, y: height / 2 })
   const [isLocked, setIsLocked] = useState(false)
@@ -141,6 +142,7 @@ export function InlineTargetLockHUD({
 
       // 상태 업데이트 콜백 (ref 사용)
       onStateUpdateRef.current?.({
+        timestamp: performance.now(),
         mouse: { x: mousePos.x, y: mousePos.y, buttons: 0 },
         targets: {
           main: { x: targetX, y: targetY, locked: isLocked },

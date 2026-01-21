@@ -1,4 +1,3 @@
-import * as React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Play, Pause, RotateCcw } from 'lucide-react'

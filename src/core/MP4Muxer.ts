@@ -23,7 +23,7 @@ export class MP4MuxerWrapper {
   /**
    * Muxer 초기화
    */
-  initialize(decoderConfig?: VideoDecoderConfig): void {
+  initialize(_decoderConfig?: VideoDecoderConfig): void {
     const { width, height, fps } = this.config
 
     this.muxer = new Muxer({

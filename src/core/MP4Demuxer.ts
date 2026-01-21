@@ -1,14 +1,39 @@
 import * as MP4BoxModule from 'mp4box'
-import type {
-  MP4ArrayBuffer,
-  MP4File,
-  MP4Info,
-  Sample,
-  DataStream,
-} from 'mp4box'
 
-// mp4box는 CommonJS 모듈이므로 default export 처리
-const MP4Box = (MP4BoxModule as unknown as { default: typeof MP4BoxModule }).default || MP4BoxModule
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const MP4Box = (MP4BoxModule as any).default || MP4BoxModule
+
+// mp4box 타입 정의
+interface MP4ArrayBuffer extends ArrayBuffer {
+  fileStart: number
+}
+
+interface MP4File {
+  onReady: (info: MP4Info) => void
+  onSamples: (trackId: number, ref: unknown, samples: Sample[]) => void
+  onError: (error: string) => void
+  appendBuffer: (buffer: MP4ArrayBuffer) => void
+  flush: () => void
+  start: () => void
+  setExtractionOptions: (trackId: number, user: unknown, options: { nbSamples: number }) => void
+  getTrackById: (id: number) => TrackBox | undefined
+}
+
+interface MP4Info {
+  videoTracks: Array<{
+    id: number
+    codec: string
+    video: { width: number; height: number }
+  }>
+}
+
+interface Sample {
+  is_sync: boolean
+  cts: number
+  duration: number
+  timescale: number
+  data: Uint8Array
+}
 
 export interface DemuxerCallbacks {
   onConfig: (config: VideoDecoderConfig) => void
@@ -17,11 +42,14 @@ export interface DemuxerCallbacks {
   onError: (error: Error) => void
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DataStreamType = any
+
 interface TrackEntry {
-  avcC?: { write: (stream: DataStream) => void }
-  hvcC?: { write: (stream: DataStream) => void }
-  vpcC?: { write: (stream: DataStream) => void }
-  av1C?: { write: (stream: DataStream) => void }
+  avcC?: { write: (stream: DataStreamType) => void }
+  hvcC?: { write: (stream: DataStreamType) => void }
+  vpcC?: { write: (stream: DataStreamType) => void }
+  av1C?: { write: (stream: DataStreamType) => void }
 }
 
 interface TrackBox {
@@ -90,13 +118,15 @@ export class MP4Demuxer {
     for (const entry of trak.mdia.minf.stbl.stsd.entries) {
       const box = entry.avcC || entry.hvcC || entry.vpcC || entry.av1C
       if (box) {
-        const stream = new MP4Box.DataStream(
-          undefined,
-          0,
-          MP4Box.DataStream.BIG_ENDIAN
-        )
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const DataStream = (MP4Box as any).DataStream
+        const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN)
         box.write(stream)
-        return new Uint8Array(stream.buffer, 8) // box header 제외
+        const buffer = stream.buffer as ArrayBuffer
+        if (buffer.byteLength > 8) {
+          return new Uint8Array(buffer, 8) // box header 제외
+        }
+        return new Uint8Array(buffer)
       }
     }
     return undefined
