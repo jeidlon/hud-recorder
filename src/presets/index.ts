@@ -18,9 +18,10 @@
 
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Crosshair, Clock, Gamepad2 } from 'lucide-react'
+import { Crosshair, Clock, Gamepad2, Sparkles } from 'lucide-react'
 import { TargetLockHUD } from './TargetLockHUD'
 import { DreamPersonaHUD } from './DreamPersonaHUD'
+import { DreamPersonaRemasterHUD } from './dreamPersonaRemaster/DreamPersonaRemasterHUD'
 import type { HUDState } from '@/types/hud-protocol'
 
 // HUD 컴포넌트의 공통 Props 인터페이스
@@ -48,6 +49,14 @@ export interface HUDPreset {
  * 새 HUD를 추가하려면 여기에 등록하세요!
  */
 export const hudPresets: HUDPreset[] = [
+  {
+    id: 'dream-persona-remaster',
+    name: '몽중게임 REMASTER',
+    description: '5가지 시나리오 | ARWES + react-vfx 셰이더',
+    icon: Sparkles,
+    component: DreamPersonaRemasterHUD,
+    available: true,
+  },
   {
     id: 'dream-persona',
     name: '몽중게임 HUD',
