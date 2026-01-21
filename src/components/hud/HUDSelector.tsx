@@ -1,8 +1,9 @@
 import * as React from 'react'
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Crosshair, Link2, Check, Clock, Eye, X } from 'lucide-react'
+import { Link2, Check, Eye, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { hudPresets, type HUDPreset } from '@/presets'
 
 // 내장 HUD 식별자
 export const INLINE_HUD_ID = '__inline__'
@@ -15,57 +16,9 @@ interface HUDSelectorProps {
   className?: string
 }
 
-// 프리셋 HUD 목록
-const presetHUDs = [
-  {
-    id: 'target-lock',
-    name: 'Target Lock',
-    url: INLINE_HUD_ID,
-    description: '크로스헤어 + 타겟 락온',
-    icon: Crosshair,
-    available: true,
-    previewComponent: 'InlineTargetLockHUD',
-  },
-  {
-    id: 'coming-soon',
-    name: 'Coming Soon...',
-    url: '',
-    description: '새로운 HUD 준비 중',
-    icon: Clock,
-    available: false,
-    previewComponent: null,
-  },
-]
-
 // 미리보기 모달 컴포넌트
-function PreviewModal({
-  preset,
-  onClose,
-}: {
-  preset: (typeof presetHUDs)[0]
-  onClose: () => void
-}) {
-  const [mousePos, setMousePos] = React.useState({ x: 400, y: 300 })
-  const [isLocked, setIsLocked] = React.useState(false)
-  const containerRef = React.useRef<HTMLDivElement>(null)
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    setMousePos({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    })
-  }, [])
-
-  const handleClick = useCallback(() => {
-    setIsLocked((prev) => !prev)
-  }, [])
-
-  // 타겟 위치 계산
-  const targetX = isLocked ? mousePos.x : mousePos.x
-  const targetY = isLocked ? mousePos.y : mousePos.y
-  const color = isLocked ? '#ff0000' : '#00ff00'
+function PreviewModal({ preset, onClose }: { preset: HUDPreset; onClose: () => void }) {
+  const HUDComponent = preset.component
 
   return (
     <motion.div
@@ -100,166 +53,84 @@ function PreviewModal({
 
         {/* 미리보기 영역 */}
         <div
-          ref={containerRef}
-          onMouseMove={handleMouseMove}
-          onClick={handleClick}
-          className="relative w-full aspect-video rounded-xl overflow-hidden border border-white/20 cursor-crosshair"
+          className="relative w-full rounded-xl overflow-hidden border border-white/20 cursor-crosshair"
           style={{
+            aspectRatio: '16 / 9',
             backgroundImage: 'url(/preview-bg.png)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }}
         >
-          {/* HUD 오버레이 */}
-          {preset.id === 'target-lock' && (
-            <svg
-              className="absolute inset-0 w-full h-full pointer-events-none"
-              style={{ overflow: 'visible' }}
-            >
-              {/* 십자선 */}
-              <line
-                x1={targetX - 20}
-                y1={targetY}
-                x2={targetX + 20}
-                y2={targetY}
-                stroke={color}
-                strokeWidth={2}
-              />
-              <line
-                x1={targetX}
-                y1={targetY - 20}
-                x2={targetX}
-                y2={targetY + 20}
-                stroke={color}
-                strokeWidth={2}
-              />
-
-              {/* 원형 레티클 */}
-              <circle cx={targetX} cy={targetY} r={30} stroke={color} strokeWidth={2} fill="none" />
-
-              {/* 외곽 사각형 */}
-              <rect
-                x={targetX - 50}
-                y={targetY - 50}
-                width={100}
-                height={100}
-                stroke={color}
-                strokeWidth={2}
-                fill="none"
-              />
-
-              {/* 코너 마커 */}
-              {[
-                { x: targetX - 50, y: targetY - 50, dx: 1, dy: 1 },
-                { x: targetX + 50, y: targetY - 50, dx: -1, dy: 1 },
-                { x: targetX - 50, y: targetY + 50, dx: 1, dy: -1 },
-                { x: targetX + 50, y: targetY + 50, dx: -1, dy: -1 },
-              ].map((corner, i) => (
-                <g key={i}>
-                  <line
-                    x1={corner.x}
-                    y1={corner.y}
-                    x2={corner.x + 10 * corner.dx}
-                    y2={corner.y}
-                    stroke={color}
-                    strokeWidth={3}
-                  />
-                  <line
-                    x1={corner.x}
-                    y1={corner.y}
-                    x2={corner.x}
-                    y2={corner.y + 10 * corner.dy}
-                    stroke={color}
-                    strokeWidth={3}
-                  />
-                </g>
-              ))}
-
-              {/* 추가 원 (락온 시) */}
-              {isLocked && (
-                <>
-                  <circle
-                    cx={targetX}
-                    cy={targetY}
-                    r={40}
-                    stroke={color}
-                    strokeWidth={2}
-                    fill="none"
-                  />
-                  <text
-                    x={targetX + 55}
-                    y={targetY - 40}
-                    fill={color}
-                    fontSize={14}
-                    fontWeight="bold"
-                    fontFamily="monospace"
-                  >
-                    LOCKED
-                  </text>
-                </>
-              )}
-
-              {/* 좌표 표시 */}
-              <text x={10} y={20} fill={color} fontSize={12} fontFamily="monospace">
-                X: {targetX.toFixed(0)} Y: {targetY.toFixed(0)}
-              </text>
-              <text x={10} y={40} fill={color} fontSize={12} fontFamily="monospace">
-                {isLocked ? '🔒 LOCKED' : '🎯 TRACKING'}
-              </text>
-            </svg>
+          {/* 실제 HUD 컴포넌트 렌더링 */}
+          {HUDComponent && (
+            <HUDComponent
+              width={1280}
+              height={720}
+              isPlaying={false}
+              onStateUpdate={() => {}}
+              onReady={() => {}}
+            />
           )}
 
           {/* 안내 텍스트 */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-sm border border-white/10">
             <span className="text-sm text-zinc-300">
-              마우스를 움직이고 <span className="text-blue-400 font-medium">클릭</span>하여 락온
-              테스트
+              마우스를 움직이고 <span className="text-blue-400 font-medium">클릭</span>하여 테스트
             </span>
           </div>
         </div>
 
         {/* 설명 */}
         <div className="mt-4 p-4 rounded-lg bg-zinc-900/80 border border-white/10">
-          <h4 className="text-sm font-medium text-zinc-200 mb-2">기능 설명</h4>
-          <ul className="text-xs text-zinc-400 space-y-1">
-            <li>• 마우스 이동: 크로스헤어가 따라옴</li>
-            <li>• 클릭: 타겟 락온/해제 토글</li>
-            <li>• 녹화 시 모든 움직임이 기록됨</li>
-          </ul>
+          <h4 className="text-sm font-medium text-zinc-200 mb-2">{preset.name}</h4>
+          <p className="text-xs text-zinc-400">{preset.description}</p>
         </div>
       </motion.div>
     </motion.div>
   )
 }
 
+// 프리셋 ID를 URL로 변환
+function presetIdToUrl(presetId: string): string {
+  return presetId === 'target-lock' ? INLINE_HUD_ID : ''
+}
+
+// URL을 프리셋 ID로 변환
+function urlToPresetId(url: string): string | null {
+  if (url === INLINE_HUD_ID) return 'target-lock'
+  const preset = hudPresets.find((p) => presetIdToUrl(p.id) === url)
+  return preset?.id || null
+}
+
 export const HUDSelector = React.forwardRef<HTMLDivElement, HUDSelectorProps>(
   ({ hudUrl, onUrlChange, isConnected, className }, ref) => {
-    const [mode, setMode] = useState<'preset' | 'custom'>(
-      hudUrl === INLINE_HUD_ID || presetHUDs.some((p) => p.url === hudUrl) ? 'preset' : 'custom'
-    )
-    const [customUrl, setCustomUrl] = useState(
-      hudUrl !== INLINE_HUD_ID && !presetHUDs.some((p) => p.url === hudUrl) ? hudUrl : ''
-    )
-    const [previewPreset, setPreviewPreset] = useState<(typeof presetHUDs)[0] | null>(null)
+    const currentPresetId = urlToPresetId(hudUrl)
+
+    const [mode, setMode] = useState<'preset' | 'custom'>(currentPresetId ? 'preset' : 'custom')
+    const [customUrl, setCustomUrl] = useState(currentPresetId ? '' : hudUrl)
+    const [previewPreset, setPreviewPreset] = useState<HUDPreset | null>(null)
 
     const isInline = hudUrl === INLINE_HUD_ID
 
     const handleModeChange = (newMode: 'preset' | 'custom') => {
       setMode(newMode)
       if (newMode === 'preset') {
-        // 첫 번째 프리셋 선택
-        onUrlChange(presetHUDs[0].url)
+        // 첫 번째 사용 가능한 프리셋 선택
+        const firstAvailable = hudPresets.find((p) => p.available)
+        if (firstAvailable) {
+          onUrlChange(presetIdToUrl(firstAvailable.id))
+        }
       }
     }
 
-    const handlePresetSelect = (preset: (typeof presetHUDs)[0]) => {
+    const handlePresetSelect = (preset: HUDPreset) => {
       if (!preset.available) return
-      onUrlChange(preset.url)
+      onUrlChange(presetIdToUrl(preset.id))
     }
 
-    const handlePreview = (e: React.MouseEvent, preset: (typeof presetHUDs)[0]) => {
+    const handlePreview = (e: React.MouseEvent, preset: HUDPreset) => {
       e.stopPropagation()
-      if (preset.available) {
+      if (preset.available && preset.component) {
         setPreviewPreset(preset)
       }
     }
@@ -347,9 +218,9 @@ export const HUDSelector = React.forwardRef<HTMLDivElement, HUDSelectorProps>(
                 exit={{ opacity: 0, y: -10 }}
                 className="grid grid-cols-2 gap-2"
               >
-                {presetHUDs.map((preset) => {
+                {hudPresets.map((preset) => {
                   const Icon = preset.icon
-                  const isSelected = hudUrl === preset.url
+                  const isSelected = currentPresetId === preset.id
 
                   return (
                     <motion.div
@@ -405,7 +276,7 @@ export const HUDSelector = React.forwardRef<HTMLDivElement, HUDSelectorProps>(
                       </button>
 
                       {/* 미리보기 버튼 */}
-                      {preset.available && (
+                      {preset.available && preset.component && (
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
@@ -480,7 +351,7 @@ export const HUDSelector = React.forwardRef<HTMLDivElement, HUDSelectorProps>(
           </AnimatePresence>
         </motion.div>
 
-        {/* 미리보기 모달 */}
+        {/* 미리보기 모달 - 실제 HUD 컴포넌트 사용 */}
         <AnimatePresence>
           {previewPreset && (
             <PreviewModal preset={previewPreset} onClose={() => setPreviewPreset(null)} />
