@@ -6,48 +6,155 @@
 
 ## 📋 목차
 
-1. [내장 프리셋 추가 (권장)](#1-내장-프리셋-추가-권장)
-2. [기본 구조 (iframe 방식)](#2-기본-구조-iframe-방식)
-3. [통신 프로토콜](#3-통신-프로토콜)
-4. [필수 구현 사항](#4-필수-구현-사항)
-5. [상태 업데이트 규칙](#5-상태-업데이트-규칙)
-6. [렌더링 최적화](#6-렌더링-최적화)
-7. [키보드/마우스 이벤트](#7-키보드마우스-이벤트)
+1. [아키텍처 개요](#1-아키텍처-개요)
+2. [내장 프리셋 추가 (권장)](#2-내장-프리셋-추가-권장)
+3. [공유 드로잉 모듈 작성](#3-공유-드로잉-모듈-작성)
+4. [오프라인 렌더링 지원](#4-오프라인-렌더링-지원)
+5. [통신 프로토콜 (iframe 방식)](#5-통신-프로토콜-iframe-방식)
+6. [상태 업데이트 규칙](#6-상태-업데이트-규칙)
+7. [렌더링 최적화](#7-렌더링-최적화)
 8. [스타일 가이드](#8-스타일-가이드)
 9. [테스트 체크리스트](#9-테스트-체크리스트)
 10. [예제 템플릿](#10-예제-템플릿)
 
 ---
 
-## 1. 내장 프리셋 추가 (권장)
+## 1. 아키텍처 개요
 
-> 🎯 **가장 쉬운 방법!** 미리보기와 실제 HUD에서 같은 컴포넌트가 사용됩니다.
+### 🎯 핵심 원칙: 공유 드로잉 모듈
+
+**실시간 미리보기**와 **오프라인 렌더링(PNG/MP4)**이 **100% 동일한 결과**를 보장하려면 **공유 드로잉 모듈**을 사용해야 합니다.
+
+```
+                    myHUDDrawing.ts
+                    (모든 드로잉 함수 공유)
+                           │
+           ┌───────────────┴───────────────┐
+           │                               │
+      MyNewHUD.tsx               OfflineHUDRenderer.ts
+      (실시간 미리보기)              (PNG/MP4 내보내기)
+
+              → 100% 동일한 렌더링 보장!
+```
 
 ### 📁 파일 구조
 
 ```
-src/presets/
-├── index.ts           ← 프리셋 레지스트리 (여기서 등록)
-├── TargetLockHUD.tsx  ← Target Lock HUD
-└── MyNewHUD.tsx       ← 새로 만들 HUD
+src/
+├── presets/
+│   ├── index.ts                  ← 프리셋 레지스트리
+│   ├── dreamPersonaDrawing.ts    ← 공유 드로잉 모듈 (핵심!)
+│   ├── DreamPersonaHUD.tsx       ← 실시간 HUD 컴포넌트
+│   └── TargetLockHUD.tsx         ← 다른 HUD
+├── core/
+│   └── OfflineHUDRenderer.ts     ← 오프라인 렌더러 (여기에 case 추가)
+└── components/hud/
+    └── InlineTargetLockHUD.tsx   ← 인라인 HUD
 ```
 
-### Step 1️⃣ HUD 컴포넌트 만들기
+---
+
+## 2. 내장 프리셋 추가 (권장)
+
+### Step 1️⃣ 공유 드로잉 모듈 만들기
+
+```typescript
+// src/presets/myHUDDrawing.ts
+// 이 파일의 함수들이 실시간 + 오프라인 모두에서 사용됨!
+
+export type DrawContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+
+// 타입 정의
+export interface MyHUDState {
+  health: number
+  mana: number
+  // ... 커스텀 상태
+}
+
+// 색상 상수
+export const COLORS = {
+  primary: '#00ff00',
+  danger: '#ff0000',
+  // ...
+}
+
+// 드로잉 함수들 (핵심!)
+export function drawHealthBar(
+  ctx: DrawContext,
+  x: number, y: number,
+  health: number, maxHealth: number
+) {
+  const ratio = health / maxHealth
+  const barWidth = 200
+  const barHeight = 20
+
+  // 배경
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+  ctx.fillRect(x, y, barWidth, barHeight)
+
+  // 게이지
+  ctx.fillStyle = ratio < 0.3 ? COLORS.danger : COLORS.primary
+  ctx.fillRect(x, y, barWidth * ratio, barHeight)
+
+  // 테두리
+  ctx.strokeStyle = COLORS.primary
+  ctx.lineWidth = 2
+  ctx.strokeRect(x, y, barWidth, barHeight)
+}
+
+export function drawCrosshair(
+  ctx: DrawContext,
+  x: number, y: number,
+  isLocked: boolean
+) {
+  const color = isLocked ? COLORS.danger : COLORS.primary
+  ctx.strokeStyle = color
+  ctx.lineWidth = 2
+
+  // 십자선
+  ctx.beginPath()
+  ctx.moveTo(x - 20, y)
+  ctx.lineTo(x + 20, y)
+  ctx.moveTo(x, y - 20)
+  ctx.lineTo(x, y + 20)
+  ctx.stroke()
+
+  // 원
+  ctx.beginPath()
+  ctx.arc(x, y, 15, 0, Math.PI * 2)
+  ctx.stroke()
+}
+
+// 시나리오별 HUD
+export function drawMainHUD(
+  ctx: DrawContext,
+  width: number, height: number,
+  state: MyHUDState,
+  mousePos: { x: number; y: number },
+  time: number
+) {
+  // 여기서 다른 드로잉 함수들 호출
+  drawHealthBar(ctx, 20, 20, state.health, 100)
+  drawCrosshair(ctx, mousePos.x, mousePos.y, false)
+  // ...
+}
+```
+
+### Step 2️⃣ React HUD 컴포넌트 만들기
 
 ```tsx
 // src/presets/MyNewHUD.tsx
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import type { HUDComponentProps } from './index'
 
-/**
- * 새로운 HUD 컴포넌트
- * 
- * Props:
- * - width, height: 비디오 해상도
- * - isPlaying: 재생 상태
- * - onStateUpdate: 상태 변경 시 호출
- * - onReady: 초기화 완료 시 호출
- */
+// 공유 드로잉 모듈 import! (핵심!)
+import {
+  type MyHUDState,
+  drawMainHUD,
+  drawCrosshair,
+  // ... 필요한 함수들
+} from './myHUDDrawing'
+
 export function MyNewHUD({
   width,
   height,
@@ -56,25 +163,24 @@ export function MyNewHUD({
 }: HUDComponentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [mousePos, setMousePos] = useState({ x: width / 2, y: height / 2 })
-  const hasCalledReady = useRef(false)
+  const [state, setState] = useState<MyHUDState>({ health: 100, mana: 50 })
+  const [time, setTime] = useState(0)
 
-  // 초기화 완료 알림 (한 번만)
+  // 초기화
   useEffect(() => {
-    if (!hasCalledReady.current && onReady) {
-      hasCalledReady.current = true
-      onReady()
-    }
-  }, [])
+    onReady?.()
+  }, [onReady])
 
   // 마우스 이벤트
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * width
-    const y = ((e.clientY - rect.top) / rect.height) * height
-    setMousePos({ x, y })
+    setMousePos({
+      x: ((e.clientX - rect.left) / rect.width) * width,
+      y: ((e.clientY - rect.top) / rect.height) * height,
+    })
   }, [width, height])
 
-  // Canvas 렌더링
+  // 렌더링 루프
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -82,29 +188,26 @@ export function MyNewHUD({
     if (!ctx) return
 
     let animId: number
-
     const render = () => {
       ctx.clearRect(0, 0, width, height)
 
-      // 여기에 렌더링 로직 작성
-      ctx.fillStyle = '#00ff00'
-      ctx.beginPath()
-      ctx.arc(mousePos.x, mousePos.y, 20, 0, Math.PI * 2)
-      ctx.fill()
+      // 공유 드로잉 함수 호출! (오프라인 렌더러와 동일!)
+      drawMainHUD(ctx, width, height, state, mousePos, time)
 
       // 상태 업데이트 (녹화용)
       onStateUpdate?.({
         timestamp: performance.now(),
         mouse: { x: mousePos.x, y: mousePos.y, buttons: 0 },
-        customData: { /* 커스텀 데이터 */ }
+        customData: { state } // 커스텀 상태 저장!
       })
 
+      setTime(t => t + 1/60)
       animId = requestAnimationFrame(render)
     }
 
     render()
     return () => cancelAnimationFrame(animId)
-  }, [width, height, mousePos, onStateUpdate])
+  }, [width, height, mousePos, state, time, onStateUpdate])
 
   return (
     <canvas
@@ -114,145 +217,193 @@ export function MyNewHUD({
       onMouseMove={handleMouseMove}
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
+        top: 0, left: 0,
+        width: '100%', height: '100%',
         pointerEvents: 'auto',
-        cursor: 'crosshair',
       }}
     />
   )
 }
 ```
 
-### Step 2️⃣ 레지스트리에 등록
+### Step 3️⃣ 레지스트리에 등록
 
 ```tsx
 // src/presets/index.ts
-import { ComponentType } from 'react'
-import type { LucideIcon } from 'lucide-react'
-import { Crosshair, Clock, Heart } from 'lucide-react'  // 아이콘 추가
-import { TargetLockHUD } from './TargetLockHUD'
-import { MyNewHUD } from './MyNewHUD'  // 👈 import 추가
-import type { HUDState } from '@/types/hud-protocol'
+import { Heart } from 'lucide-react'
+import { MyNewHUD } from './MyNewHUD'
 
-// HUD 컴포넌트 Props 인터페이스
-export interface HUDComponentProps {
-  width: number
-  height: number
-  isPlaying?: boolean
-  onStateUpdate?: (state: HUDState) => void
-  onReady?: () => void
-}
-
-// 프리셋 정의
-export interface HUDPreset {
-  id: string
-  name: string
-  description: string
-  icon: LucideIcon
-  component: ComponentType<HUDComponentProps> | null
-  available: boolean
-}
-
-// 👇 여기에 등록!
 export const hudPresets: HUDPreset[] = [
-  {
-    id: 'target-lock',
-    name: 'Target Lock',
-    description: '크로스헤어 + 타겟 락온',
-    icon: Crosshair,
-    component: TargetLockHUD,
-    available: true,
-  },
+  // 기존 프리셋들...
+  
   // ✨ 새 프리셋 추가!
   {
     id: 'my-new-hud',
     name: 'My New HUD',
     description: '새로운 HUD 설명',
-    icon: Heart,            // lucide-react 아이콘
-    component: MyNewHUD,    // 위에서 만든 컴포넌트
+    icon: Heart,
+    component: MyNewHUD,
     available: true,
-  },
-  // Coming Soon (비활성화 예시)
-  {
-    id: 'coming-soon',
-    name: 'Coming Soon...',
-    description: '새로운 HUD 준비 중',
-    icon: Clock,
-    component: null,
-    available: false,
   },
 ]
 ```
 
-### ✅ 끝!
+### Step 4️⃣ 오프라인 렌더러에 추가
 
-- 프리셋 선택 UI에 자동으로 표시됨
-- 미리보기 버튼 자동 활성화
-- 실제 HUD와 미리보기가 동일한 컴포넌트 사용
+```typescript
+// src/core/OfflineHUDRenderer.ts
+import {
+  type MyHUDState,
+  drawMainHUD,
+} from '@/presets/myHUDDrawing'
+
+// render() 메서드에 case 추가
+render(state: FrameState): OffscreenCanvas {
+  switch (this.config.presetId) {
+    case 'my-new-hud':
+      return this.renderMyNewHUD(state)
+    // ...
+  }
+}
+
+private renderMyNewHUD(state: FrameState): OffscreenCanvas {
+  const { width, height } = this.config
+  const ctx = this.ctx
+
+  ctx.clearRect(0, 0, width, height)
+
+  // customData에서 상태 추출
+  const hudState: MyHUDState = (state.customData as any)?.state || { health: 100, mana: 50 }
+  const mousePos = { x: state.mouse.x, y: state.mouse.y }
+  const time = this.frameIndex / 60
+
+  // 공유 드로잉 함수 호출! (실시간 HUD와 동일!)
+  drawMainHUD(ctx, width, height, hudState, mousePos, time)
+
+  this.frameIndex++
+  return this.canvas
+}
+```
 
 ---
 
-## 2. 기본 구조 (iframe 방식)
+## 3. 공유 드로잉 모듈 작성
 
-> 외부 앱을 iframe으로 연결하는 방식. 기존 앱을 재사용하거나 별도 도메인에서 호스팅할 때 유용.
+### 타입 정의
 
-### HUD 앱은 독립적인 웹 앱입니다
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  HUD Recorder (메인 앱)                                     │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │  Video Layer                                          │  │
-│  │  ┌─────────────────────────────────────────────────┐  │  │
-│  │  │                                                 │  │  │
-│  │  │  ┌─────────────────────────────────────────┐   │  │  │
-│  │  │  │  HUD App (iframe)                       │   │  │  │
-│  │  │  │                                         │   │  │  │
-│  │  │  │  - 투명 배경                            │   │  │  │
-│  │  │  │  - postMessage 통신                     │   │  │  │
-│  │  │  │  - 마우스/키보드 이벤트 처리            │   │  │  │
-│  │  │  │                                         │   │  │  │
-│  │  │  └─────────────────────────────────────────┘   │  │  │
-│  │  │                                                 │  │  │
-│  │  └─────────────────────────────────────────────────┘  │  │
-│  └───────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+```typescript
+// 실시간 Canvas와 OffscreenCanvas 모두 지원
+export type DrawContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 ```
 
-### 기술 스택 제한 없음
+### 함수 시그니처 권장
 
-| 기술 | 지원 |
-|------|------|
-| React / Vue / Svelte | ✅ |
-| Vanilla JS | ✅ |
-| Canvas 2D / WebGL | ✅ |
-| Three.js | ✅ |
-| Tailwind CSS | ✅ |
-| Framer Motion / GSAP | ✅ |
+```typescript
+// ✅ 좋음: ctx를 첫 번째 파라미터로
+export function drawElement(
+  ctx: DrawContext,
+  x: number, y: number,
+  ...params
+) { ... }
+
+// ✅ 좋음: 시간 기반 애니메이션
+export function drawAnimatedElement(
+  ctx: DrawContext,
+  x: number, y: number,
+  time: number  // 초 단위 시간
+) {
+  const pulse = Math.sin(time * 5) * 0.3 + 0.7
+  ctx.globalAlpha = pulse
+  // ...
+  ctx.globalAlpha = 1
+}
+```
+
+### 글로우 효과
+
+```typescript
+export function drawGlowingText(
+  ctx: DrawContext,
+  text: string,
+  x: number, y: number,
+  color: string
+) {
+  ctx.font = 'bold 14px "Consolas", monospace'
+  ctx.fillStyle = color
+  ctx.shadowColor = color
+  ctx.shadowBlur = 15
+  ctx.fillText(text, x, y)
+  ctx.shadowBlur = 0  // 반드시 리셋!
+}
+```
 
 ---
 
-## 3. 통신 프로토콜
+## 4. 오프라인 렌더링 지원
 
-### 메인 앱 → HUD 앱 메시지
+### customData 활용
+
+실시간 HUD에서 상태를 `customData`에 저장하면 오프라인 렌더링에서 복원됩니다:
+
+```typescript
+// 실시간 HUD에서 상태 저장
+onStateUpdate?.({
+  timestamp: performance.now(),
+  mouse: { x, y, buttons: 0 },
+  targets: { main: { x, y, locked: isLocked } },
+  customData: {
+    // 오프라인 렌더링에 필요한 모든 상태!
+    scenario: 'combat',
+    health: 75,
+    mana: 30,
+    effects: ['burning', 'slowed'],
+    cooldowns: { Q: 2.5, W: 0, E: 8.0, R: 45.0 },
+  }
+})
+```
+
+```typescript
+// 오프라인 렌더러에서 상태 복원
+private renderMyHUD(state: FrameState): OffscreenCanvas {
+  const customData = state.customData as any
+  const scenario = customData?.scenario || 'idle'
+  const health = customData?.health || 100
+  const effects = customData?.effects || []
+  // ...
+}
+```
+
+### 마우스 위치 보간
+
+마우스 위치는 자동으로 **선형 보간**됩니다 (InputInterpolator):
+
+```
+녹화 시: 100ms 간격으로 상태 저장
+렌더링 시: 60fps (16.67ms 간격)으로 보간된 위치 제공
+```
+
+---
+
+## 5. 통신 프로토콜 (iframe 방식)
+
+> 외부 앱을 iframe으로 연결하는 경우에만 해당
+
+### 메인 앱 → HUD 앱
 
 ```typescript
 interface MainToHUDMessage {
   type: 'INIT' | 'PLAY' | 'PAUSE' | 'SEEK' | 'SET_STATE' | 'CAPTURE_FRAME'
   payload?: {
-    time?: number      // 현재 시간 (ms)
-    width?: number     // 비디오 너비
-    height?: number    // 비디오 높이
-    fps?: number       // 프레임레이트
-    state?: HUDState   // 복원할 상태 (오프라인 렌더링 시)
+    time?: number
+    width?: number
+    height?: number
+    fps?: number
+    state?: HUDState
   }
 }
 ```
 
-### HUD 앱 → 메인 앱 메시지
+### HUD 앱 → 메인 앱
 
 ```typescript
 interface HUDToMainMessage {
@@ -269,239 +420,94 @@ interface HUDToMainMessage {
 
 ```typescript
 interface HUDState {
-  timestamp: number  // 필수! 상태 생성 시간 (ms)
-  mouse: {
-    x: number
-    y: number
-    buttons: number  // 마우스 버튼 상태 (bitfield)
-  }
-  targets?: {
-    [id: string]: {
-      x: number
-      y: number
-      locked: boolean
-      // 추가 속성 자유롭게
-    }
-  }
+  timestamp: number  // 필수!
+  mouse: { x: number; y: number; buttons: number }
+  targets?: Record<string, { x: number; y: number; locked: boolean }>
   customData?: unknown  // HUD별 커스텀 데이터
 }
 ```
 
 ---
 
-## 4. 필수 구현 사항
+## 6. 상태 업데이트 규칙
 
-### ✅ 반드시 구현해야 하는 것들
+### 업데이트 빈도 제한
 
 ```typescript
-// 1. 메시지 수신 리스너 등록
-window.addEventListener('message', (e) => {
-  const msg = e.data as MainToHUDMessage
-  
-  switch (msg.type) {
-    case 'INIT':
-      // 초기화: width, height, fps 받음
-      initHUD(msg.payload)
-      break
-      
-    case 'PLAY':
-      // 재생 시작
-      startAnimation()
-      break
-      
-    case 'PAUSE':
-      // 일시정지
-      stopAnimation()
-      break
-      
-    case 'SET_STATE':
-      // 상태 복원 (오프라인 렌더링 시 필수!)
-      restoreState(msg.payload?.state)
-      break
-  }
-})
+// ✅ 좋음: 100ms 간격으로 스로틀링
+const lastUpdateRef = useRef(0)
 
-// 2. 준비 완료 알림 (필수!)
-window.parent.postMessage({ type: 'READY' }, '*')
+useEffect(() => {
+  const now = performance.now()
+  if (now - lastUpdateRef.current < 100) return
+  lastUpdateRef.current = now
 
-// 3. 상태 변경 시 업데이트 전송
-function sendStateUpdate(state: HUDState) {
-  window.parent.postMessage({
-    type: 'STATE_UPDATE',
-    payload: { state }
-  }, '*')
-}
+  onStateUpdate?.({
+    timestamp: now,
+    mouse: { x: mousePos.x, y: mousePos.y, buttons: 0 },
+    customData: { ... }
+  })
+}, [mousePos, ...deps])
 ```
 
-### ❌ 하면 안 되는 것들
-
-1. **timestamp 누락** - 반드시 포함
-2. **과도한 상태 업데이트** - 60fps 이하로 제한
-3. **메모리 누수** - 애니메이션 정리 필수
-4. **불투명 배경** - 투명 배경 필수
-
----
-
-## 5. 상태 업데이트 규칙
-
-### 업데이트 빈도
+### 필수 저장 데이터
 
 ```typescript
-// ✅ 좋음: requestAnimationFrame과 동기화 (60fps)
-let lastUpdate = 0
-const UPDATE_INTERVAL = 1000 / 60 // ~16.67ms
-
-function render(time: number) {
-  // 상태 업데이트 (throttle)
-  if (time - lastUpdate >= UPDATE_INTERVAL) {
-    sendStateUpdate(currentState)
-    lastUpdate = time
-  }
-  
-  requestAnimationFrame(render)
-}
-
-// ❌ 나쁨: mousemove마다 업데이트 (100+fps)
-document.addEventListener('mousemove', (e) => {
-  sendStateUpdate({ ... }) // 너무 잦은 호출!
-})
-```
-
-### 상태 구조 설계
-
-```typescript
-// ✅ 좋음: 필요한 데이터만 포함
-const state: HUDState = {
-  timestamp: performance.now(),
-  mouse: { x: 100, y: 200, buttons: 0 },
-  targets: {
-    crosshair: { x: 100, y: 200, locked: false }
-  },
-  customData: {
-    activeSkill: 'Q',
-    cooldowns: { Q: 0, W: 3.5, E: 0, R: 45 }
-  }
-}
-
-// ❌ 나쁨: 불필요한 데이터 포함
-const state = {
-  timestamp: performance.now(),
-  mouse: { ... },
-  entireDOMSnapshot: document.body.innerHTML, // ❌
-  allEventHistory: [...] // ❌
+// ✅ 오프라인 렌더링에 필요한 모든 것을 저장!
+customData: {
+  scenario,        // 현재 시나리오/모드
+  stats,           // 플레이어 스탯
+  enemy,           // 적 정보
+  effects,         // 활성 효과들
+  timers,          // 타이머/쿨다운
+  indicators,      // 방향 표시기 등
 }
 ```
 
 ---
 
-## 6. 렌더링 최적화
+## 7. 렌더링 최적화
 
-### Canvas 기반 HUD (권장)
+### GPU 가속
 
-```typescript
-// Canvas는 오프라인 렌더링과 호환성 최고
-const canvas = document.querySelector('canvas')!
-const ctx = canvas.getContext('2d')!
-
-function render() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
-  
-  // 렌더링 로직
-  drawCrosshair(ctx, mouseX, mouseY)
-  drawTargetBox(ctx, targetX, targetY)
-  
-  requestAnimationFrame(render)
-}
+```tsx
+<canvas
+  style={{
+    transform: 'translateZ(0)',
+    willChange: 'transform',
+    backfaceVisibility: 'hidden',
+  }}
+/>
 ```
 
-### DOM 기반 HUD
+### 성능 모드 지원
 
 ```typescript
-// DOM도 가능하지만 오프라인 렌더링 시 재현 필요
-// SET_STATE 메시지로 상태 복원 구현 필수
+const [performanceMode, setPerformanceMode] = useState<'high' | 'low'>('high')
+const frameInterval = performanceMode === 'high' ? 1000 / 60 : 1000 / 30
 
-function restoreState(state: HUDState) {
-  if (!state) return
-  
-  // DOM 요소 위치/상태 복원
-  crosshairEl.style.left = `${state.mouse.x}px`
-  crosshairEl.style.top = `${state.mouse.y}px`
-  
-  if (state.targets?.main?.locked) {
-    crosshairEl.classList.add('locked')
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.code === 'KeyQ') {
+      setPerformanceMode(prev => prev === 'high' ? 'low' : 'high')
+    }
   }
-}
+  window.addEventListener('keydown', handleKeyDown)
+  return () => window.removeEventListener('keydown', handleKeyDown)
+}, [])
 ```
 
 ### 메모리 관리
 
 ```typescript
-// ✅ 컴포넌트 정리 시 애니메이션 취소
+// ✅ 애니메이션 정리
 useEffect(() => {
   const animId = requestAnimationFrame(render)
-  
-  return () => {
-    cancelAnimationFrame(animId)
-  }
+  return () => cancelAnimationFrame(animId)
 }, [])
 
-// ✅ 이벤트 리스너 정리
-useEffect(() => {
-  const handler = (e: KeyboardEvent) => { ... }
-  window.addEventListener('keydown', handler)
-  
-  return () => {
-    window.removeEventListener('keydown', handler)
-  }
-}, [])
-```
-
----
-
-## 7. 키보드/마우스 이벤트
-
-### 키보드 단축키 처리
-
-```typescript
-// 메인 앱에서 키보드 이벤트도 기록됨
-// HUD 앱에서는 UI 상태만 변경
-
-const [activeSkill, setActiveSkill] = useState<string | null>(null)
-
-useEffect(() => {
-  const handleKeyDown = (e: KeyboardEvent) => {
-    // 스킬 활성화
-    if (['KeyQ', 'KeyW', 'KeyE', 'KeyR'].includes(e.code)) {
-      setActiveSkill(e.code.replace('Key', ''))
-      
-      // 상태 업데이트에 포함
-      sendStateUpdate({
-        timestamp: performance.now(),
-        mouse: { x: mouseX, y: mouseY, buttons: 0 },
-        customData: { activeSkill: e.code }
-      })
-    }
-  }
-  
-  window.addEventListener('keydown', handleKeyDown)
-  return () => window.removeEventListener('keydown', handleKeyDown)
-}, [mouseX, mouseY])
-```
-
-### 마우스 클릭 처리
-
-```typescript
-const handleClick = (e: MouseEvent) => {
-  // 클릭 위치에 효과 표시
-  setClickEffect({ x: e.clientX, y: e.clientY })
-  
-  // 상태 업데이트
-  sendStateUpdate({
-    timestamp: performance.now(),
-    mouse: { x: e.clientX, y: e.clientY, buttons: e.buttons },
-    customData: { lastClick: { x: e.clientX, y: e.clientY } }
-  })
-}
+// ✅ 오래된 데이터 정리
+setIndicators(prev => prev.filter(i => Date.now() - i.timestamp < 1000))
 ```
 
 ---
@@ -511,61 +517,43 @@ const handleClick = (e: MouseEvent) => {
 ### 필수 CSS
 
 ```css
-/* 투명 배경 필수! */
 html, body {
   margin: 0;
   padding: 0;
   background: transparent !important;
   overflow: hidden;
-  width: 100vw;
-  height: 100vh;
 }
 
-/* 포인터 이벤트 설정 */
 .hud-container {
-  pointer-events: none; /* 기본: 이벤트 통과 */
+  pointer-events: none;
 }
 
 .hud-interactive {
-  pointer-events: auto; /* 클릭 가능한 요소 */
+  pointer-events: auto;
 }
 ```
 
-### 색상 권장
+### 색상 팔레트
 
-```css
-/* 가시성 좋은 HUD 색상 */
-:root {
-  --hud-primary: #00ff00;    /* 녹색 (기본) */
-  --hud-danger: #ff0000;     /* 빨강 (경고/락온) */
-  --hud-warning: #ffff00;    /* 노랑 (주의) */
-  --hud-info: #00ffff;       /* 시안 (정보) */
-  
-  /* 그림자로 가시성 확보 */
-  --hud-glow: 0 0 10px currentColor;
-}
-
-.crosshair {
-  color: var(--hud-primary);
-  text-shadow: var(--hud-glow);
-  filter: drop-shadow(0 0 5px currentColor);
-}
-
-.locked {
-  color: var(--hud-danger);
+```typescript
+export const COLORS = {
+  primary: '#FFD700',      // 골드 (메인)
+  primaryGlow: '#FFEA00',  // 밝은 골드
+  secondary: '#00FFFF',    // 시안
+  danger: '#FF4444',       // 빨강
+  success: '#00FF88',      // 초록
+  warning: '#FF8800',      // 오렌지
+  text: '#FFFFFF',
+  textDim: 'rgba(255, 255, 255, 0.6)',
 }
 ```
 
-### 폰트 권장
+### 폰트
 
-```css
-/* 모노스페이스 폰트 권장 */
-.hud-text {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  font-size: 12px;
-  font-weight: bold;
-  letter-spacing: 0.05em;
-}
+```typescript
+ctx.font = 'bold 14px "Consolas", monospace'
+// 또는
+ctx.font = 'bold 14px "JetBrains Mono", "Fira Code", monospace'
 ```
 
 ---
@@ -574,233 +562,112 @@ html, body {
 
 ### 개발 중
 
-- [ ] 투명 배경 확인
-- [ ] READY 메시지 전송 확인
-- [ ] STATE_UPDATE 메시지 전송 확인
-- [ ] timestamp 포함 여부
-- [ ] 60fps 이하 업데이트 빈도
-- [ ] 메모리 누수 없음
+- [ ] 공유 드로잉 모듈 분리
+- [ ] 실시간 HUD에서 공유 함수 import
+- [ ] customData에 모든 필요한 상태 저장
+- [ ] 상태 업데이트 스로틀링 (100ms)
 
-### 메인 앱 연동 시
+### 오프라인 렌더링
 
-- [ ] iframe 로드 정상
-- [ ] 마우스 이벤트 정상 작동
-- [ ] 키보드 이벤트 정상 작동
-- [ ] 녹화 시 상태 기록됨
-- [ ] 오프라인 렌더링 시 HUD 재현됨
-- [ ] PNG 시퀀스 출력 정상
+- [ ] OfflineHUDRenderer에 case 추가
+- [ ] customData에서 상태 복원
+- [ ] 공유 드로잉 함수 호출
+- [ ] PNG 시퀀스 품질 확인
+- [ ] MP4 렌더링 품질 확인
 
-### 배포 전
+### 실시간 vs 오프라인 비교
 
-- [ ] 프로덕션 빌드 테스트
-- [ ] CORS 설정 확인
-- [ ] HTTPS 환경 테스트
+- [ ] 동일한 시나리오에서 화면 비교
+- [ ] 마우스 움직임 부드러움 확인
+- [ ] 모든 효과 동일하게 표현되는지
 
 ---
 
 ## 10. 예제 템플릿
 
-### 최소 템플릿 (Vanilla JS)
+### 최소 공유 드로잉 모듈
 
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body {
-      background: transparent !important;
-      overflow: hidden;
-      width: 100vw;
-      height: 100vh;
-    }
-    #crosshair {
-      position: absolute;
-      width: 40px;
-      height: 40px;
-      border: 2px solid #00ff00;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      transition: border-color 0.1s;
-    }
-    #crosshair::before, #crosshair::after {
-      content: '';
-      position: absolute;
-      background: #00ff00;
-    }
-    #crosshair::before {
-      width: 20px; height: 2px;
-      left: 50%; top: 50%;
-      transform: translate(-50%, -50%);
-    }
-    #crosshair::after {
-      width: 2px; height: 20px;
-      left: 50%; top: 50%;
-      transform: translate(-50%, -50%);
-    }
-    #crosshair.locked {
-      border-color: #ff0000;
-    }
-    #crosshair.locked::before, #crosshair.locked::after {
-      background: #ff0000;
-    }
-  </style>
-</head>
-<body>
-  <div id="crosshair"></div>
-  
-  <script>
-    const crosshair = document.getElementById('crosshair')
-    let mouseX = window.innerWidth / 2
-    let mouseY = window.innerHeight / 2
-    let isLocked = false
-    
-    // 메시지 수신
-    window.addEventListener('message', (e) => {
-      const msg = e.data
-      if (msg.type === 'INIT') {
-        console.log('HUD initialized:', msg.payload)
-      }
-      if (msg.type === 'SET_STATE' && msg.payload?.state) {
-        // 상태 복원 (오프라인 렌더링용)
-        const { mouse, targets } = msg.payload.state
-        mouseX = mouse.x
-        mouseY = mouse.y
-        isLocked = targets?.main?.locked || false
-        updateCrosshair()
-      }
-    })
-    
-    // 준비 완료
-    window.parent.postMessage({ type: 'READY' }, '*')
-    
-    // 마우스 추적
-    document.addEventListener('mousemove', (e) => {
-      mouseX = e.clientX
-      mouseY = e.clientY
-      updateCrosshair()
-    })
-    
-    // 클릭으로 락온 토글
-    document.addEventListener('click', () => {
-      isLocked = !isLocked
-      updateCrosshair()
-    })
-    
-    // 크로스헤어 업데이트
-    function updateCrosshair() {
-      crosshair.style.left = mouseX + 'px'
-      crosshair.style.top = mouseY + 'px'
-      crosshair.classList.toggle('locked', isLocked)
-      
-      // 상태 전송
-      window.parent.postMessage({
-        type: 'STATE_UPDATE',
-        payload: {
-          state: {
-            timestamp: performance.now(),
-            mouse: { x: mouseX, y: mouseY, buttons: 0 },
-            targets: {
-              main: { x: mouseX, y: mouseY, locked: isLocked }
-            }
-          }
-        }
-      }, '*')
-    }
-    
-    // 초기화
-    updateCrosshair()
-  </script>
-</body>
-</html>
+```typescript
+// src/presets/simpleDrawing.ts
+export type DrawContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+
+export function drawSimpleHUD(
+  ctx: DrawContext,
+  width: number, height: number,
+  mousePos: { x: number; y: number },
+  time: number
+) {
+  // 크로스헤어
+  ctx.strokeStyle = '#00ff00'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(mousePos.x - 20, mousePos.y)
+  ctx.lineTo(mousePos.x + 20, mousePos.y)
+  ctx.moveTo(mousePos.x, mousePos.y - 20)
+  ctx.lineTo(mousePos.x, mousePos.y + 20)
+  ctx.stroke()
+
+  // 좌표 표시
+  ctx.fillStyle = '#00ff00'
+  ctx.font = '12px monospace'
+  ctx.fillText(`X: ${mousePos.x.toFixed(0)} Y: ${mousePos.y.toFixed(0)}`, 10, 20)
+}
 ```
 
-### React 템플릿
+### 최소 HUD 컴포넌트
 
 ```tsx
-// src/App.tsx
+// src/presets/SimpleHUD.tsx
 import { useEffect, useRef, useState, useCallback } from 'react'
+import type { HUDComponentProps } from './index'
+import { drawSimpleHUD } from './simpleDrawing'
 
-interface HUDState {
-  timestamp: number
-  mouse: { x: number; y: number; buttons: number }
-  targets?: Record<string, { x: number; y: number; locked: boolean }>
-  customData?: unknown
-}
+export function SimpleHUD({ width, height, onStateUpdate, onReady }: HUDComponentProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [mousePos, setMousePos] = useState({ x: width / 2, y: height / 2 })
+  const [time, setTime] = useState(0)
 
-export default function App() {
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
-  const [isLocked, setIsLocked] = useState(false)
-  const lastUpdateRef = useRef(0)
-  
-  // 상태 전송
-  const sendState = useCallback(() => {
-    const now = performance.now()
-    if (now - lastUpdateRef.current < 16) return // 60fps 제한
-    lastUpdateRef.current = now
-    
-    const state: HUDState = {
-      timestamp: now,
-      mouse: { x: mousePos.x, y: mousePos.y, buttons: 0 },
-      targets: {
-        main: { x: mousePos.x, y: mousePos.y, locked: isLocked }
-      }
-    }
-    
-    window.parent.postMessage({
-      type: 'STATE_UPDATE',
-      payload: { state }
-    }, '*')
-  }, [mousePos, isLocked])
-  
-  // 메시지 수신
+  useEffect(() => { onReady?.() }, [onReady])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMousePos({
+      x: ((e.clientX - rect.left) / rect.width) * width,
+      y: ((e.clientY - rect.top) / rect.height) * height,
+    })
+  }, [width, height])
+
   useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      const msg = e.data
-      if (msg.type === 'SET_STATE' && msg.payload?.state) {
-        const { mouse, targets } = msg.payload.state
-        setMousePos({ x: mouse.x, y: mouse.y })
-        setIsLocked(targets?.main?.locked || false)
-      }
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let animId: number
+    const render = () => {
+      ctx.clearRect(0, 0, width, height)
+      drawSimpleHUD(ctx, width, height, mousePos, time)
+      
+      onStateUpdate?.({
+        timestamp: performance.now(),
+        mouse: { x: mousePos.x, y: mousePos.y, buttons: 0 },
+      })
+
+      setTime(t => t + 1/60)
+      animId = requestAnimationFrame(render)
     }
-    
-    window.addEventListener('message', handler)
-    window.parent.postMessage({ type: 'READY' }, '*')
-    
-    return () => window.removeEventListener('message', handler)
-  }, [])
-  
-  // 마우스 추적
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY })
-    }
-    
-    document.addEventListener('mousemove', handler)
-    return () => document.removeEventListener('mousemove', handler)
-  }, [])
-  
-  // 상태 업데이트
-  useEffect(() => {
-    sendState()
-  }, [sendState])
-  
+
+    render()
+    return () => cancelAnimationFrame(animId)
+  }, [width, height, mousePos, time, onStateUpdate])
+
   return (
-    <div
-      onClick={() => setIsLocked(!isLocked)}
-      style={{
-        position: 'absolute',
-        left: mousePos.x,
-        top: mousePos.y,
-        width: 40,
-        height: 40,
-        border: `2px solid ${isLocked ? '#ff0000' : '#00ff00'}`,
-        borderRadius: '50%',
-        transform: 'translate(-50%, -50%)',
-        pointerEvents: 'auto',
-        cursor: 'crosshair'
-      }}
+    <canvas
+      ref={canvasRef}
+      width={width}
+      height={height}
+      onMouseMove={handleMouseMove}
+      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
     />
   )
 }
@@ -808,36 +675,40 @@ export default function App() {
 
 ---
 
-## 🚀 개발 시작하기
+## 🚀 빠른 시작
 
 ```bash
-# 1. 새 HUD 앱 생성
-npm create vite@latest my-hud -- --template react-ts
+# 1. 공유 드로잉 모듈 생성
+# src/presets/myHUDDrawing.ts
 
-# 2. 개발 서버 시작 (다른 포트)
-cd my-hud
-npm install
-npm run dev -- --port 5175
+# 2. HUD 컴포넌트 생성
+# src/presets/MyHUD.tsx (공유 모듈 import!)
 
-# 3. HUD Recorder에서 Custom URL로 연결
-# http://localhost:5175
+# 3. 레지스트리 등록
+# src/presets/index.ts
+
+# 4. 오프라인 렌더러 추가
+# src/core/OfflineHUDRenderer.ts
+
+# 5. 테스트
+npm run dev
 ```
 
 ---
 
 ## ❓ FAQ
 
-### Q: 내 HUD가 오프라인 렌더링에서 안 보여요
-A: `SET_STATE` 메시지 처리를 구현했는지 확인하세요. 오프라인 렌더링 시 메인 앱이 각 프레임에 해당하는 상태를 전송합니다.
+### Q: 실시간과 PNG 시퀀스가 다르게 보여요
+A: 공유 드로잉 모듈을 사용하고 있는지 확인하세요. 실시간 HUD와 OfflineHUDRenderer가 **같은 함수**를 호출해야 합니다.
 
-### Q: 마우스 이벤트가 안 잡혀요
-A: `pointer-events: auto`가 설정되어 있는지 확인하세요.
+### Q: 마우스 움직임이 뚝뚝 끊겨요
+A: InputInterpolator가 자동으로 보간합니다. customData의 좌표도 보간하려면 별도 처리가 필요합니다.
 
-### Q: 키보드 이벤트가 안 잡혀요
-A: iframe 포커스 문제일 수 있습니다. 클릭 후 키보드를 사용하거나, 메인 앱에서 키보드 이벤트를 전달받도록 구현하세요.
+### Q: 새 HUD 추가하는데 오프라인 렌더링이 안 돼요
+A: `OfflineHUDRenderer.ts`에 새 프리셋 ID에 대한 `case`를 추가했는지 확인하세요.
 
-### Q: 상태 업데이트가 너무 많아요
-A: `requestAnimationFrame` 또는 throttle을 사용해 60fps 이하로 제한하세요.
+### Q: PNG 해상도가 낮아요
+A: `exportHUDToPNGSequence`의 `scale` 파라미터로 해상도를 조절할 수 있습니다 (기본 2x).
 
 ---
 
