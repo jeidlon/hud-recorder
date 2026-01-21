@@ -70,6 +70,12 @@ import { CHARACTERS, SCENARIO_WIN98_THEME } from './constants'
 // VFX 셰이더 타입 (react-vfx에서 가져옴)
 import type { VFXShaderPreset } from './vfxShaders'
 import { SCENARIO_VFX_MAPPING } from './vfxShaders'
+import {
+  type TacticalOSState,
+  renderSystemDiagnostic,
+  renderTacticalDesktop,
+  createDefaultTacticalState
+} from './tacticalOS98'
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 확장된 상태 타입 (Hit Marker, 트랜지션 등)
@@ -83,6 +89,7 @@ export interface ExtendedHUDState extends HUDState {
     progress: number
     startTime: number
   }
+  tacticalState?: TacticalOSState
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1144,6 +1151,24 @@ export function drawScenarioHUD(
     case 'evolved':
       drawEvolvedScenario(ctx, w, h, state)
       break
+    case 'tactical_diagnostic': {
+      const tacticalState = extState?.tacticalState || {
+        ...createDefaultTacticalState(),
+        time: state.time
+      }
+      tacticalState.time = state.time
+      renderSystemDiagnostic(ctx, w, h, tacticalState)
+      break
+    }
+    case 'tactical_desktop': {
+      const tacticalState = extState?.tacticalState || {
+        ...createDefaultTacticalState(),
+        time: state.time
+      }
+      tacticalState.time = state.time
+      renderTacticalDesktop(ctx, w, h, tacticalState)
+      break
+    }
   }
 }
 
@@ -1301,6 +1326,11 @@ export function getScenarioVFX(state: HUDState): VFXResult {
         options: {}
       }
     }
+
+    case 'tactical_diagnostic':
+    case 'tactical_desktop':
+      // TACTICAL OS는 자체적인 글리치/노이즈 효과를 가짐
+      return { shader: 'none', intensity: 0, options: {} }
 
     default:
       return { shader: 'none', intensity: 0, options: {} }

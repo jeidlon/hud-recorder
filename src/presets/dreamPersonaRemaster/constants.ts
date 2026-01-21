@@ -19,6 +19,8 @@ export type ScenarioId =
   | 'infected'  // #4 감염 상태 (Purple)
   | 'trauma'    // #5 트라우마 던전 (Grey)
   | 'evolved'   // #6 최종 진화 (Gold Enhanced)
+  | 'tactical_diagnostic' // #7 TACTICAL OS 98 - System Diagnostic
+  | 'tactical_desktop'    // #8 TACTICAL OS 98 - Desktop
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 시나리오별 정확한 색상 팔레트 (GUIDE-MODULE-01-COLOR-SYSTEM.md 기준)
@@ -160,6 +162,27 @@ export const EVOLVED_COLORS = {
   glowColor: 'rgba(255, 215, 0, 0.6)',  // 강한 글로우
 } as const
 
+// TACTICAL OS 98 색상 (System Diagnostic & Desktop)
+export const TACTICAL_COLORS = {
+  frameMain: '#FFD700',      // gold
+  frameAccent: '#8B7355',    // goldDim
+  frameLight: '#FFFACD',     // goldBright
+  frameDark: '#3A3A3A',      // bgPanel
+
+  bgPrimary: '#1E1E1E',      // bgDark
+  bgSecondary: '#2D2D2D',    // bgMedium
+  bgPanel: '#3A3A3A',        // bgPanel
+
+  textPrimary: '#FFD700',    // gold
+  textSecondary: '#8B7355',  // goldDim
+  textMuted: '#5C5C5C',      // goldMuted
+  textWhite: '#FFFFFF',
+
+  gridLine: '#FFD700',       // gridLine
+  dotColor: '#FFD700',       // gridDot
+  glowColor: '#FFD700',
+} as const
+
 // 시나리오별 색상 통합 객체
 export const SCENARIO_COLORS = {
   normal: NORMAL_COLORS,
@@ -168,6 +191,8 @@ export const SCENARIO_COLORS = {
   infected: INFECTED_COLORS,
   trauma: TRAUMA_COLORS,
   evolved: EVOLVED_COLORS,
+  tactical_diagnostic: TACTICAL_COLORS,
+  tactical_desktop: TACTICAL_COLORS,
 } as const
 
 // 색상 헬퍼 함수
@@ -251,6 +276,20 @@ export const THEMES: Record<ScenarioId, ThemeColor> = {
     deco: createColorLevel(40, 80, 95),     // 크림 화이트
     bg: createAlphaColor(45, 60, 18),       // 따뜻한 골드 배경
     text: createColorLevel(45, 30, 98),     // 밝은 골드 텍스트
+  },
+  // TACTICAL OS 98 System Diagnostic
+  tactical_diagnostic: {
+    main: createColorLevel(45, 100, 50),
+    deco: createColorLevel(38, 100, 50),
+    bg: createAlphaColor(30, 40, 10),
+    text: createColorLevel(45, 20, 92),
+  },
+  // TACTICAL OS 98 Desktop
+  tactical_desktop: {
+    main: createColorLevel(45, 100, 50),
+    deco: createColorLevel(38, 100, 50),
+    bg: createAlphaColor(30, 40, 10),
+    text: createColorLevel(45, 20, 92),
   },
 }
 
@@ -367,6 +406,18 @@ export const SCENARIOS: Record<ScenarioId, {
     shortcut: '6',
     day: 5,
   },
+  tactical_diagnostic: {
+    name: 'SYSTEM DIAGNOSTIC',
+    koreanName: '시스템 진단',
+    description: 'TACTICAL OS 98 시스템 점검',
+    shortcut: '7',
+  },
+  tactical_desktop: {
+    name: 'TACTICAL DESKTOP',
+    koreanName: '작전 데스크탑',
+    description: 'TACTICAL OS 98 메인 데스크탑',
+    shortcut: '8',
+  },
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -388,6 +439,8 @@ export const SCENARIO_CHARACTERS = {
   infected: '█▓▒░?#@!$%^&*▓█▒░ERROR',
   trauma: '...---___~~~',
   evolved: '★☆✦✧◆◇●○■□▲△▼▽✦✧',
+  tactical_diagnostic: CIPHER_CHARACTERS,
+  tactical_desktop: CIPHER_CHARACTERS,
 } as const
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -495,6 +548,8 @@ export const SCENARIO_WIN98_THEME: Record<ScenarioId, Win98Theme> = {
   infected: 'purple',
   trauma: 'grey',
   evolved: 'gold',
+  tactical_diagnostic: 'gold',
+  tactical_desktop: 'gold',
 }
 
 // 레거시 호환성을 위한 기본 Win98 색상

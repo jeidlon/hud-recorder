@@ -59,6 +59,8 @@ const SCENARIO_KEYS: Record<string, ScenarioId> = {
   '4': 'infected',
   '5': 'trauma',
   '6': 'evolved',
+  '7': 'tactical_diagnostic',
+  '8': 'tactical_desktop',
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

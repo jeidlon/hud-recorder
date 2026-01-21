@@ -1052,6 +1052,8 @@ export function applyHologramEffects(
     infected: 1.5,  // 감염 상태 - 매우 강하게
     trauma: 0.3,    // 절망적 - 약하게
     evolved: 0.6,   // 진화 상태
+    tactical_diagnostic: 0.5,
+    tactical_desktop: 0.5,
   }
 
   const intensity = effectIntensity[scenario]
