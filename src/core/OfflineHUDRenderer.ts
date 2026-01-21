@@ -66,6 +66,8 @@ export class OfflineHUDRenderer {
     const presetId = this.config.presetId || 'target-lock'
 
     switch (presetId) {
+      case 'cyberpunk':
+        return this.renderCyberpunk(state)
       case 'dream-persona':
         return this.renderDreamPersona(state)
       case 'target-lock':
@@ -249,6 +251,276 @@ export class OfflineHUDRenderer {
     ctx.font = '12px monospace'
     ctx.fillText(`X: ${targetX.toFixed(0)} Y: ${targetY.toFixed(0)}`, 10, 20)
     ctx.fillText(isLocked ? '🔒 LOCKED' : '🎯 TRACKING', 10, 40)
+
+    this.frameIndex++
+    return this.canvas
+  }
+
+  /**
+   * Cyberpunk HUD 렌더링 - Remotion 스타일 애니메이션
+   * Canvas 2D로 동일한 비주얼 재현
+   */
+  private renderCyberpunk(state: FrameState): OffscreenCanvas {
+    const width = this.config.width / this.scale
+    const height = this.config.height / this.scale
+    const ctx = this.ctx
+    const frame = this.frameIndex
+    const fps = 60
+
+    ctx.clearRect(0, 0, width, height)
+
+    const { mouse, targets } = state
+    const targetX = targets?.main?.x ?? mouse.x
+    const targetY = targets?.main?.y ?? mouse.y
+    const isLocked = targets?.main?.locked ?? false
+
+    // 색상 팔레트
+    const COLORS = {
+      primary: '#00f0ff',
+      secondary: '#ff00ff',
+      accent: '#ffff00',
+      warning: '#ff3333',
+      success: '#00ff88',
+      bgPanel: 'rgba(0, 20, 40, 0.8)',
+    }
+
+    // 스프링 애니메이션 유틸
+    const spring = (f: number, delay: number = 0, damping: number = 30) => {
+      const t = Math.max(0, f - delay) / fps
+      const omega = 10
+      const zeta = damping / 20
+      return Math.min(1, 1 - Math.exp(-zeta * omega * t) * Math.cos(omega * Math.sqrt(1 - zeta * zeta) * t))
+    }
+
+    // ===== 스캔라인 =====
+    const scanlineOffset = (frame % (fps * 2)) * 2
+    ctx.save()
+    ctx.globalAlpha = 0.05
+    for (let y = scanlineOffset % 4; y < height; y += 4) {
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, y, width, 2)
+    }
+    ctx.restore()
+
+    // ===== 좌상단 패널: 스탯 =====
+    const panelAlpha = spring(frame, 0)
+    ctx.save()
+    ctx.globalAlpha = panelAlpha
+    ctx.fillStyle = COLORS.bgPanel
+    ctx.strokeStyle = `${COLORS.primary}40`
+    ctx.lineWidth = 1
+    
+    const panelX = 20
+    const panelY = 20
+    const panelW = 200
+    const panelH = 120
+    
+    ctx.beginPath()
+    ctx.roundRect(panelX, panelY, panelW, panelH, 4)
+    ctx.fill()
+    ctx.stroke()
+
+    // 패널 제목
+    ctx.font = 'bold 14px monospace'
+    ctx.fillStyle = COLORS.primary
+    ctx.fillText('SYSTEM STATUS', panelX + 15, panelY + 25)
+
+    // 스탯 바들
+    const bars = [
+      { label: 'HP', value: 85, max: 100, color: COLORS.success, delay: 5 },
+      { label: 'ENERGY', value: 60, max: 100, color: COLORS.primary, delay: 10 },
+      { label: 'SHIELD', value: 45, max: 100, color: COLORS.secondary, delay: 15 },
+    ]
+
+    bars.forEach((bar, i) => {
+      const barY = panelY + 45 + i * 25
+      const barProgress = spring(frame, bar.delay)
+      const valueWidth = (bar.value / bar.max) * 160 * barProgress
+
+      // 레이블
+      ctx.font = '10px monospace'
+      ctx.fillStyle = COLORS.primary
+      ctx.fillText(bar.label, panelX + 15, barY)
+      
+      ctx.fillStyle = bar.color
+      ctx.textAlign = 'right'
+      ctx.fillText(`${bar.value}/${bar.max}`, panelX + panelW - 15, barY)
+      ctx.textAlign = 'left'
+
+      // 바 배경
+      ctx.fillStyle = 'rgba(255,255,255,0.1)'
+      ctx.fillRect(panelX + 15, barY + 5, 170, 4)
+
+      // 바 값
+      ctx.fillStyle = bar.color
+      ctx.shadowColor = bar.color
+      ctx.shadowBlur = 10
+      ctx.fillRect(panelX + 15, barY + 5, valueWidth, 4)
+      ctx.shadowBlur = 0
+    })
+    ctx.restore()
+
+    // ===== 우상단: 시간 & 좌표 =====
+    const timeAlpha = spring(frame, 10)
+    ctx.save()
+    ctx.globalAlpha = timeAlpha
+    ctx.fillStyle = COLORS.bgPanel
+    ctx.strokeStyle = `${COLORS.primary}40`
+    
+    const timeX = width - 120
+    const timeY = 20
+    ctx.beginPath()
+    ctx.roundRect(timeX, timeY, 100, 50, 4)
+    ctx.fill()
+    ctx.stroke()
+
+    const seconds = Math.floor(frame / fps)
+    const minutes = Math.floor(seconds / 60)
+    const displaySeconds = seconds % 60
+    const timeStr = `${minutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`
+
+    ctx.font = 'bold 20px monospace'
+    ctx.fillStyle = COLORS.primary
+    ctx.textAlign = 'center'
+    ctx.fillText(timeStr, timeX + 50, timeY + 28)
+    
+    ctx.font = '9px monospace'
+    ctx.fillStyle = `${COLORS.primary}aa`
+    ctx.fillText(`POS: ${Math.round(targetX)}, ${Math.round(targetY)}`, timeX + 50, timeY + 42)
+    ctx.textAlign = 'left'
+    ctx.restore()
+
+    // ===== 하단 상태바 =====
+    const statusAlpha = spring(frame, 20)
+    ctx.save()
+    ctx.globalAlpha = statusAlpha
+    ctx.fillStyle = COLORS.bgPanel
+    ctx.strokeStyle = `${COLORS.primary}40`
+    
+    const statusW = 280
+    const statusX = width / 2 - statusW / 2
+    const statusY = height - 50
+    ctx.beginPath()
+    ctx.roundRect(statusX, statusY, statusW, 30, 4)
+    ctx.fill()
+    ctx.stroke()
+
+    ctx.font = '11px monospace'
+    ctx.textAlign = 'center'
+    
+    ctx.fillStyle = COLORS.accent
+    ctx.fillText('◆ TRACKING', statusX + 50, statusY + 18)
+    
+    ctx.fillStyle = isLocked ? COLORS.warning : COLORS.success
+    ctx.fillText(isLocked ? '● LOCKED' : '● SCANNING', statusX + 140, statusY + 18)
+    
+    ctx.fillStyle = COLORS.primary
+    ctx.fillText(`FPS: ${fps}`, statusX + 230, statusY + 18)
+    ctx.textAlign = 'left'
+    ctx.restore()
+
+    // ===== 크로스헤어 =====
+    const color = isLocked ? COLORS.warning : COLORS.primary
+    const rotation = (frame % (fps * 4)) * (360 / (fps * 4))
+    const pulse = 1 + Math.sin(frame * 0.1) * 0.05
+
+    ctx.save()
+    ctx.translate(targetX, targetY)
+
+    // 외부 링 (회전)
+    ctx.save()
+    ctx.rotate((rotation * Math.PI) / 180)
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1
+    ctx.globalAlpha = 0.5
+    ctx.setLineDash([10, 5])
+    ctx.beginPath()
+    ctx.arc(0, 0, 40 * pulse, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // 코너 마커
+    ctx.lineWidth = 2
+    ctx.globalAlpha = 1
+    for (let i = 0; i < 4; i++) {
+      ctx.save()
+      ctx.rotate((i * Math.PI) / 2)
+      ctx.beginPath()
+      ctx.moveTo(35, -5)
+      ctx.lineTo(40, 0)
+      ctx.lineTo(35, 5)
+      ctx.stroke()
+      ctx.restore()
+    }
+    ctx.restore()
+
+    // 내부 크로스헤어
+    ctx.strokeStyle = color
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(-15, 0)
+    ctx.lineTo(-5, 0)
+    ctx.moveTo(5, 0)
+    ctx.lineTo(15, 0)
+    ctx.moveTo(0, -15)
+    ctx.lineTo(0, -5)
+    ctx.moveTo(0, 5)
+    ctx.lineTo(0, 15)
+    ctx.stroke()
+
+    // 중앙 점
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(0, 0, 2, 0, Math.PI * 2)
+    ctx.fill()
+
+    // 락온 텍스트
+    if (isLocked) {
+      ctx.font = 'bold 12px monospace'
+      ctx.fillStyle = COLORS.warning
+      ctx.shadowColor = COLORS.warning
+      ctx.shadowBlur = 10
+      ctx.textAlign = 'center'
+      ctx.fillText('LOCKED', 0, 55)
+      ctx.shadowBlur = 0
+    }
+
+    ctx.restore()
+
+    // ===== 코너 프레임 =====
+    ctx.strokeStyle = COLORS.primary
+    ctx.lineWidth = 2
+    ctx.globalAlpha = 0.5
+
+    // 좌상단
+    ctx.beginPath()
+    ctx.moveTo(0, 50)
+    ctx.lineTo(0, 0)
+    ctx.lineTo(50, 0)
+    ctx.stroke()
+
+    // 우상단
+    ctx.beginPath()
+    ctx.moveTo(width - 50, 0)
+    ctx.lineTo(width, 0)
+    ctx.lineTo(width, 50)
+    ctx.stroke()
+
+    // 좌하단
+    ctx.beginPath()
+    ctx.moveTo(0, height - 50)
+    ctx.lineTo(0, height)
+    ctx.lineTo(50, height)
+    ctx.stroke()
+
+    // 우하단
+    ctx.beginPath()
+    ctx.moveTo(width - 50, height)
+    ctx.lineTo(width, height)
+    ctx.lineTo(width, height - 50)
+    ctx.stroke()
+
+    ctx.globalAlpha = 1
 
     this.frameIndex++
     return this.canvas

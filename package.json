@@ -13,6 +13,8 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@react-three/postprocessing": "^3.0.4",
+    "@remotion/cli": "^4.0.407",
+    "@remotion/player": "^4.0.407",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.27.5",
@@ -24,6 +26,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-vfx": "^0.13.0",
+    "remotion": "^4.0.407",
     "tailwind-merge": "^3.4.0",
     "three": "^0.182.0",
     "zustand": "^5.0.10"

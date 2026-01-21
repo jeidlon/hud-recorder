@@ -282,8 +282,14 @@ export const ControlPanel = React.forwardRef<ControlPanelHandle, ControlPanelPro
     }, [])
 
     const handleRender = useCallback(async () => {
-      const { recordingSession, videoFile, startRendering, setRenderProgress, finishRendering } =
-        useAppStore.getState()
+      const { 
+        recordingSession, 
+        videoFile, 
+        startRendering, 
+        setRenderProgress, 
+        finishRendering,
+        getRenderingOptions,
+      } = useAppStore.getState()
 
       if (!recordingSession || !videoFile) {
         alert('녹화된 세션과 비디오 파일이 필요합니다')
@@ -293,26 +299,35 @@ export const ControlPanel = React.forwardRef<ControlPanelHandle, ControlPanelPro
       startRendering()
 
       try {
-        const pipeline = new RenderingPipeline(recordingSession, videoFile, {
-          onProgress: (progress, current, total) => {
-            setRenderProgress(progress)
-            console.log(`Rendering: ${current}/${total} (${progress.toFixed(1)}%)`)
-          },
-          onComplete: (chunks, metadata) => {
-            console.log('Rendering complete!', chunks.length, 'chunks')
-            finishRendering()
+        // WebGPU 렌더링 옵션 가져오기
+        const renderingOptions = getRenderingOptions()
+        console.log('[ControlPanel] Rendering with options:', renderingOptions)
 
-            // Phase 5에서 Muxing 처리
-            // 지금은 chunks를 전역에 저장
-            window.__encodedChunks = { chunks, metadata }
-            alert('렌더링 완료! Export 버튼으로 MP4를 다운로드하세요.')
+        const pipeline = new RenderingPipeline(
+          recordingSession, 
+          videoFile, 
+          {
+            onProgress: (progress, current, total) => {
+              setRenderProgress(progress)
+              console.log(`Rendering: ${current}/${total} (${progress.toFixed(1)}%)`)
+            },
+            onComplete: (chunks, metadata) => {
+              console.log('Rendering complete!', chunks.length, 'chunks')
+              finishRendering()
+
+              // Phase 5에서 Muxing 처리
+              // 지금은 chunks를 전역에 저장
+              window.__encodedChunks = { chunks, metadata }
+              alert('렌더링 완료! Export 버튼으로 MP4를 다운로드하세요.')
+            },
+            onError: (error) => {
+              console.error('Rendering error:', error)
+              finishRendering()
+              alert('렌더링 실패: ' + error.message)
+            },
           },
-          onError: (error) => {
-            console.error('Rendering error:', error)
-            finishRendering()
-            alert('렌더링 실패: ' + error.message)
-          },
-        })
+          renderingOptions  // WebGPU 옵션 전달
+        )
 
         await pipeline.start()
       } catch (error) {

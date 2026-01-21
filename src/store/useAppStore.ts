@@ -1,5 +1,14 @@
 import { create } from 'zustand'
 import type { InputEvent, HUDStateSnapshot, RecordingSession } from '@/types/input-log'
+import type { CompositorMode, RenderingOptions } from '@/core/RenderingPipeline'
+
+export interface WebGPUEffects {
+  chromaticAberration: boolean
+  bloom: boolean
+  scanlines: boolean
+  vignette: boolean
+  noise: boolean
+}
 
 interface AppState {
   // 비디오 상태
@@ -28,6 +37,10 @@ interface AppState {
   isRendering: boolean
   renderProgress: number
 
+  // WebGPU 렌더링 옵션
+  compositorMode: CompositorMode
+  webgpuEffects: WebGPUEffects
+
   // Actions
   setVideoFile: (file: File | null) => void
   setVideoMetadata: (meta: AppState['videoMetadata']) => void
@@ -44,6 +57,9 @@ interface AppState {
   startRendering: () => void
   setRenderProgress: (progress: number) => void
   finishRendering: () => void
+  setCompositorMode: (mode: CompositorMode) => void
+  setWebGPUEffect: (effect: keyof WebGPUEffects, enabled: boolean) => void
+  getRenderingOptions: () => RenderingOptions
   reset: () => void
 }
 
@@ -59,6 +75,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   recordingSession: null,
   isRendering: false,
   renderProgress: 0,
+  
+  // WebGPU 기본값: auto 모드, 모든 효과 비활성화
+  compositorMode: 'auto',
+  webgpuEffects: {
+    chromaticAberration: false,
+    bloom: false,
+    scanlines: false,
+    vignette: false,
+    noise: false,
+  },
 
   // Actions
   setVideoFile: (file) => set({ videoFile: file }),
@@ -108,6 +134,24 @@ export const useAppStore = create<AppState>((set, get) => ({
   setRenderProgress: (progress) => set({ renderProgress: progress }),
 
   finishRendering: () => set({ isRendering: false, renderProgress: 100 }),
+
+  setCompositorMode: (mode) => set({ compositorMode: mode }),
+
+  setWebGPUEffect: (effect, enabled) =>
+    set((state) => ({
+      webgpuEffects: {
+        ...state.webgpuEffects,
+        [effect]: enabled,
+      },
+    })),
+
+  getRenderingOptions: () => {
+    const { compositorMode, webgpuEffects } = get()
+    return {
+      compositorMode,
+      effects: webgpuEffects,
+    }
+  },
 
   reset: () =>
     set({

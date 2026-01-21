@@ -12,6 +12,7 @@ import { HUDContainer } from '@/components/hud/HUDContainer'
 import { HUDSelector, isInlineHUDUrl, getPresetIdFromInlineUrl } from '@/components/hud/HUDSelector'
 import { getPresetById } from '@/presets'
 import { ControlPanel, type ControlPanelHandle } from '@/components/controls/ControlPanel'
+import { WebGPUSettings } from '@/components/controls/WebGPUSettings'
 import { checkWebCodecsSupport } from '@/utils/checkSupport'
 import { useAppStore } from '@/store/useAppStore'
 import { cn } from '@/lib/utils'
@@ -337,6 +338,9 @@ function App() {
                   hudStateCallbackRef.current = callback
                 }}
               />
+
+              {/* WebGPU 렌더링 설정 */}
+              <WebGPUSettings />
             </motion.div>
           )}
         </AnimatePresence>

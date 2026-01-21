@@ -18,10 +18,11 @@
 
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Crosshair, Clock, Gamepad2, Sparkles } from 'lucide-react'
+import { Crosshair, Clock, Gamepad2, Sparkles, Cpu } from 'lucide-react'
 import { TargetLockHUD } from './TargetLockHUD'
 import { DreamPersonaHUD } from './DreamPersonaHUD'
 import { DreamPersonaRemasterHUD } from './dreamPersonaRemaster/DreamPersonaRemasterHUD'
+import { CyberpunkHUD } from './remotion/CyberpunkHUD'
 import type { HUDState } from '@/types/hud-protocol'
 
 // HUD 컴포넌트의 공통 Props 인터페이스
@@ -49,6 +50,14 @@ export interface HUDPreset {
  * 새 HUD를 추가하려면 여기에 등록하세요!
  */
 export const hudPresets: HUDPreset[] = [
+  {
+    id: 'cyberpunk',
+    name: 'Cyberpunk HUD',
+    description: 'Remotion 스타일 | 스프링 애니메이션 | 글리치 효과',
+    icon: Cpu,
+    component: CyberpunkHUD,
+    available: true,
+  },
   {
     id: 'dream-persona-remaster',
     name: '몽중게임 REMASTER',

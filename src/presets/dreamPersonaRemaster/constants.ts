@@ -12,7 +12,7 @@
 // 시나리오 ID 타입
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export type ScenarioId = 
+export type ScenarioId =
   | 'normal'    // #1 기본 상태 (Gold/Yellow) - 탐색, 일반 게임플레이
   | 'sync'      // #2 로그인/신경 접속 (Blue)
   | 'combat'    // #3 몬스터 전투/피격 (Red)
@@ -32,18 +32,18 @@ export const NORMAL_COLORS = {
   frameAccent: '#FFC000',    // Amber - 강조/하이라이트
   frameLight: '#FFE066',     // Light Gold - 밝은 부분
   frameDark: '#CC9900',      // Dark Gold - 어두운 부분
-  
+
   // 배경 색상
   bgPrimary: 'rgba(20, 15, 5, 0.85)',    // 다크 브라운 (불투명도 85%)
   bgSecondary: 'rgba(30, 25, 10, 0.7)',  // 약간 밝은 브라운
   bgPanel: 'rgba(40, 35, 15, 0.6)',      // 패널 배경
-  
+
   // 텍스트 색상
   textPrimary: '#FFD700',    // 골드 텍스트
   textSecondary: '#CCAA00',  // 어두운 골드
   textMuted: '#998800',      // 비활성 텍스트
   textWhite: '#FFFFFF',      // 순백색
-  
+
   // 그리드/장식 색상
   gridLine: 'rgba(255, 215, 0, 0.15)',   // 15% 투명도 골드
   dotColor: 'rgba(255, 215, 0, 0.3)',    // 30% 투명도 골드
@@ -56,16 +56,16 @@ export const SYNC_COLORS = {
   frameAccent: '#00A8CC',    // Dark Cyan
   frameLight: '#66E5FF',     // Light Cyan
   frameDark: '#006688',      // Deep Cyan
-  
+
   bgPrimary: 'rgba(0, 20, 30, 0.85)',
   bgSecondary: 'rgba(0, 30, 45, 0.7)',
   bgPanel: 'rgba(0, 40, 60, 0.6)',
-  
+
   textPrimary: '#00D4FF',
   textSecondary: '#88DDFF',
   textMuted: '#668899',
   textWhite: '#FFFFFF',
-  
+
   gridLine: 'rgba(0, 212, 255, 0.15)',
   dotColor: 'rgba(0, 212, 255, 0.3)',
   glowColor: 'rgba(0, 212, 255, 0.5)',
@@ -77,17 +77,17 @@ export const COMBAT_COLORS = {
   frameAccent: '#CC0033',    // Dark Red
   frameLight: '#FF4466',     // Light Red
   frameDark: '#990022',      // Deep Red
-  
+
   bgPrimary: 'rgba(30, 5, 10, 0.85)',
   bgSecondary: 'rgba(45, 10, 15, 0.7)',
   bgPanel: 'rgba(60, 15, 20, 0.6)',
-  
+
   textPrimary: '#FF0044',
   textSecondary: '#FF6688',
   textMuted: '#AA4455',
   textWhite: '#FFFFFF',
   textWarning: '#FF6600',    // 경고 오렌지
-  
+
   gridLine: 'rgba(255, 0, 68, 0.15)',
   dotColor: 'rgba(255, 0, 68, 0.3)',
   glowColor: 'rgba(255, 0, 68, 0.5)',
@@ -99,17 +99,17 @@ export const INFECTED_COLORS = {
   frameAccent: '#00FF66',    // 형광 Green (보조)
   frameLight: '#CC66FF',     // Light Purple
   frameDark: '#660099',      // Deep Purple
-  
+
   bgPrimary: 'rgba(20, 0, 30, 0.85)',
   bgSecondary: 'rgba(30, 0, 45, 0.7)',
   bgPanel: 'rgba(40, 0, 60, 0.6)',
-  
+
   textPrimary: '#9900FF',
   textSecondary: '#CC99FF',
   textMuted: '#775599',
   textWhite: '#FFFFFF',
   corruptColor: '#FF00FF',   // Magenta (글리치)
-  
+
   gridLine: 'rgba(153, 0, 255, 0.15)',
   dotColor: 'rgba(153, 0, 255, 0.3)',
   glowColor: 'rgba(153, 0, 255, 0.5)',
@@ -121,18 +121,18 @@ export const TRAUMA_COLORS = {
   frameAccent: '#444444',    // Dark Grey
   frameLight: '#888888',     // Light Grey
   frameDark: '#333333',      // Deep Grey
-  
+
   bgPrimary: 'rgba(15, 15, 15, 0.9)',   // 거의 검은색
   bgSecondary: 'rgba(25, 25, 25, 0.8)',
   bgPanel: 'rgba(35, 35, 35, 0.7)',
-  
+
   textPrimary: '#666666',
   textSecondary: '#888888',
   textMuted: '#555555',
   textWhite: '#AAAAAA',
   ecgColor: '#00FF88',       // 심전도 녹색
   chartRed: '#FF3333',       // 차트 하락 빨강
-  
+
   gridLine: 'rgba(102, 102, 102, 0.15)',
   dotColor: 'rgba(102, 102, 102, 0.3)',
   glowColor: 'rgba(102, 102, 102, 0.3)',
@@ -144,17 +144,17 @@ export const EVOLVED_COLORS = {
   frameAccent: '#FFFFFF',    // White
   frameLight: '#FFFACD',     // Light Gold/White
   frameDark: '#CC9900',      // Deep Gold
-  
+
   bgPrimary: 'rgba(30, 25, 10, 0.7)',   // 투명도 높게
   bgSecondary: 'rgba(40, 35, 15, 0.6)',
   bgPanel: 'rgba(50, 45, 20, 0.5)',
-  
+
   textPrimary: '#FFFFFF',
   textSecondary: '#FFD700',
   textMuted: '#CCAA66',
   textWhite: '#FFFFFF',
   particleColor: '#FFD700',  // 골든 파티클
-  
+
   gridLine: 'rgba(255, 215, 0, 0.2)',
   dotColor: 'rgba(255, 215, 0, 0.4)',
   glowColor: 'rgba(255, 215, 0, 0.6)',  // 강한 글로우
@@ -172,7 +172,7 @@ export const SCENARIO_COLORS = {
 
 // 색상 헬퍼 함수
 export const getScenarioColor = <K extends keyof typeof NORMAL_COLORS>(
-  scenario: ScenarioId, 
+  scenario: ScenarioId,
   colorKey: K
 ): string => {
   return SCENARIO_COLORS[scenario][colorKey as keyof typeof SCENARIO_COLORS[typeof scenario]] as string
@@ -374,7 +374,7 @@ export const SCENARIOS: Record<ScenarioId, {
 // 텍스트 암호해독 문자셋
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export const CIPHER_CHARACTERS = 
+export const CIPHER_CHARACTERS =
   '    ----____▓▒░█▀▄◆◇○●□■△▲▽▼◁◀▷▶abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
 // 글리치용 특수 문자
@@ -528,3 +528,52 @@ export const FONTS = {
   korean: '"Noto Sans KR", "Malgun Gothic", sans-serif',
   retro: '"Press Start 2P", "VT323", monospace',
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// [MODULE-04] 시나리오 전환 트랜지션 설정
+// 출처: GUIDE-MODULE-04-TRANSITIONS.md
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export type TransitionType =
+  | 'fade'           // 단순 페이드
+  | 'glitch'         // 글리치 전환
+  | 'pixelate'       // 픽셀화 전환
+  | 'shatter'        // 깨지는 효과
+  | 'warp'           // 워프 효과
+  | 'flash'          // 플래시
+
+export interface TransitionState {
+  isTransitioning: boolean
+  fromScenario: ScenarioId | null
+  toScenario: ScenarioId | null
+  progress: number           // 0 ~ 1
+  startTime: number
+  duration: number           // ms
+  type: TransitionType
+}
+
+// 시나리오별 전환 타입 매핑
+export const TRANSITION_TYPES: Record<string, TransitionType> = {
+  // FROM -> TO 형식의 키
+  'normal->sync': 'pixelate',
+  'normal->combat': 'flash',
+  'sync->normal': 'fade',
+  'sync->combat': 'glitch',
+  'combat->normal': 'fade',
+  'combat->infected': 'glitch',
+  'infected->trauma': 'shatter',
+  'trauma->evolved': 'flash',
+  'any->evolved': 'flash',      // 진화는 항상 플래시
+  'default': 'fade',
+}
+
+// 전환 지속 시간 (ms)
+export const TRANSITION_DURATION: Record<TransitionType, number> = {
+  fade: 500,
+  glitch: 800,
+  pixelate: 600,
+  shatter: 1000,
+  warp: 700,
+  flash: 300,
+}
+

@@ -2,9 +2,13 @@ import { MP4Demuxer } from './MP4Demuxer'
 import { VideoDecoderWrapper } from './VideoDecoderWrapper'
 import { VideoEncoderWrapper } from './VideoEncoderWrapper'
 import { FrameCompositor } from './FrameCompositor'
+import { WebGPUCompositor, type WebGPUCompositorConfig } from './WebGPUCompositor'
+import { checkWebGPUSupport } from './WebGPUSupport'
 import { OfflineHUDRenderer } from './OfflineHUDRenderer'
 import { InputInterpolator } from './InputInterpolator'
 import type { RecordingSession } from '@/types/input-log'
+
+export type CompositorMode = 'auto' | 'webgpu' | 'canvas2d'
 
 export interface RenderingCallbacks {
   onProgress: (progress: number, currentFrame: number, totalFrames: number) => void
@@ -12,27 +16,47 @@ export interface RenderingCallbacks {
   onError: (error: Error) => void
 }
 
+export interface RenderingOptions {
+  /** 컴포지터 모드: 'auto' (기본값), 'webgpu', 'canvas2d' */
+  compositorMode?: CompositorMode
+  /** WebGPU 포스트 프로세싱 효과 */
+  effects?: WebGPUCompositorConfig['effects']
+}
+
 /**
  * 스트리밍 방식 렌더링 파이프라인
  * 메모리 효율을 위해 프레임을 하나씩 디코딩 → 합성 → 인코딩 → 해제
+ * 
+ * WebGPU 또는 Canvas 2D 컴포지터를 선택적으로 사용 가능
  */
 export class RenderingPipeline {
   private session: RecordingSession
   private videoFile: File
   private callbacks: RenderingCallbacks
+  private options: RenderingOptions
 
   private encodedChunks: EncodedVideoChunk[] = []
   private chunkMetadata: EncodedVideoChunkMetadata[] = []
 
-  constructor(session: RecordingSession, videoFile: File, callbacks: RenderingCallbacks) {
+  constructor(
+    session: RecordingSession,
+    videoFile: File,
+    callbacks: RenderingCallbacks,
+    options: RenderingOptions = {}
+  ) {
     this.session = session
     this.videoFile = videoFile
     this.callbacks = callbacks
+    this.options = {
+      compositorMode: options.compositorMode ?? 'auto',
+      effects: options.effects,
+    }
   }
 
   async start(): Promise<void> {
     const { videoInfo, inputLog, hudStateLog, duration } = this.session
     const { width, height, fps } = videoInfo
+    const { compositorMode, effects } = this.options
 
     console.log('Starting streaming rendering pipeline...')
     console.log(`Resolution: ${width}x${height}, FPS: ${fps}, Duration: ${duration}ms`)
@@ -40,8 +64,38 @@ export class RenderingPipeline {
     // 1. 입력 보간기 생성
     const interpolator = new InputInterpolator(inputLog, hudStateLog)
 
-    // 2. 컴포지터 및 HUD 렌더러 생성
-    const compositor = new FrameCompositor({ width, height })
+    // 2. 컴포지터 생성 (WebGPU 우선, 폴백으로 Canvas 2D)
+    let compositor: FrameCompositor | WebGPUCompositor
+    let useWebGPU = false
+
+    if (compositorMode === 'canvas2d') {
+      console.log('[Pipeline] Using Canvas 2D compositor (forced)')
+      compositor = new FrameCompositor({ width, height })
+    } else {
+      // WebGPU 지원 확인
+      const webgpuSupport = await checkWebGPUSupport()
+      
+      if (webgpuSupport.supported && webgpuSupport.device) {
+        try {
+          compositor = await WebGPUCompositor.create(webgpuSupport.device, {
+            width,
+            height,
+            effects,
+          })
+          useWebGPU = true
+          console.log('[Pipeline] ✨ Using WebGPU compositor with effects:', effects)
+        } catch (err) {
+          console.warn('[Pipeline] WebGPU compositor creation failed, falling back to Canvas 2D:', err)
+          compositor = new FrameCompositor({ width, height })
+        }
+      } else {
+        if (compositorMode === 'webgpu') {
+          throw new Error(`WebGPU requested but not available: ${webgpuSupport.error}`)
+        }
+        console.log('[Pipeline] WebGPU not available, using Canvas 2D compositor')
+        compositor = new FrameCompositor({ width, height })
+      }
+    }
     
     // HUD URL에서 프리셋 ID 추출
     const hudUrl = this.session.hudInfo?.url || ''
@@ -142,7 +196,9 @@ export class RenderingPipeline {
     compositor.destroy()
     hudRenderer.destroy()
 
-    console.log(`Encoding complete. ${this.encodedChunks.length} chunks`)
+    const compositorType = useWebGPU ? 'WebGPU' : 'Canvas 2D'
+    console.log(`[Pipeline] ✅ Encoding complete with ${compositorType} compositor`)
+    console.log(`[Pipeline] Total chunks: ${this.encodedChunks.length}`)
     this.callbacks.onComplete(this.encodedChunks, this.chunkMetadata)
   }
 
