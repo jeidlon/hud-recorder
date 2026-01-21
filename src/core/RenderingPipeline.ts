@@ -42,7 +42,15 @@ export class RenderingPipeline {
 
     // 2. 컴포지터 및 HUD 렌더러 생성
     const compositor = new FrameCompositor({ width, height })
-    const hudRenderer = new OfflineHUDRenderer({ width, height })
+    
+    // HUD URL에서 프리셋 ID 추출
+    const hudUrl = this.session.hudInfo?.url || ''
+    const presetId = hudUrl.startsWith('__inline__:') 
+      ? hudUrl.replace('__inline__:', '') 
+      : 'target-lock'
+    console.log(`Using HUD preset: ${presetId}`)
+    
+    const hudRenderer = new OfflineHUDRenderer({ width, height, presetId })
 
     // 3. 인코더 초기화
     const encoder = new VideoEncoderWrapper(

@@ -3,6 +3,7 @@ import type { InputEvent, HUDStateSnapshot, MouseEventData } from '@/types/input
 export interface FrameState {
   mouse: { x: number; y: number; buttons: number }
   targets?: Record<string, { x: number; y: number; locked: boolean }>
+  customData?: unknown // HUD에서 전달한 커스텀 데이터
 }
 
 /**
@@ -30,6 +31,7 @@ export class InputInterpolator {
       return {
         mouse: hudState.mouse,
         targets: hudState.targets,
+        customData: hudState.customData,
       }
     }
 
