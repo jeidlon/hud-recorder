@@ -5,8 +5,20 @@ import { Link2, Check, Eye, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { hudPresets, type HUDPreset } from '@/presets'
 
-// 내장 HUD 식별자
-export const INLINE_HUD_ID = '__inline__'
+// 내장 HUD 식별자 (프리셋 ID를 포함)
+export const INLINE_HUD_PREFIX = '__inline__:'
+export const INLINE_HUD_ID = '__inline__:target-lock' // 기존 호환성 유지
+
+// 프리셋 ID가 내장 HUD인지 확인
+export function isInlineHUDUrl(url: string): boolean {
+  return url.startsWith(INLINE_HUD_PREFIX)
+}
+
+// 내장 HUD URL에서 프리셋 ID 추출
+export function getPresetIdFromInlineUrl(url: string): string | null {
+  if (!isInlineHUDUrl(url)) return null
+  return url.replace(INLINE_HUD_PREFIX, '')
+}
 
 interface HUDSelectorProps {
   hudUrl: string
@@ -90,16 +102,21 @@ function PreviewModal({ preset, onClose }: { preset: HUDPreset; onClose: () => v
   )
 }
 
-// 프리셋 ID를 URL로 변환
+// 프리셋 ID를 URL로 변환 (모든 내장 프리셋 지원)
 function presetIdToUrl(presetId: string): string {
-  return presetId === 'target-lock' ? INLINE_HUD_ID : ''
+  const preset = hudPresets.find((p) => p.id === presetId)
+  if (preset && preset.available && preset.component) {
+    return `${INLINE_HUD_PREFIX}${presetId}`
+  }
+  return ''
 }
 
 // URL을 프리셋 ID로 변환
 function urlToPresetId(url: string): string | null {
-  if (url === INLINE_HUD_ID) return 'target-lock'
-  const preset = hudPresets.find((p) => presetIdToUrl(p.id) === url)
-  return preset?.id || null
+  if (isInlineHUDUrl(url)) {
+    return getPresetIdFromInlineUrl(url)
+  }
+  return null
 }
 
 export const HUDSelector = React.forwardRef<HTMLDivElement, HUDSelectorProps>(
@@ -110,7 +127,7 @@ export const HUDSelector = React.forwardRef<HTMLDivElement, HUDSelectorProps>(
     const [customUrl, setCustomUrl] = useState(currentPresetId ? '' : hudUrl)
     const [previewPreset, setPreviewPreset] = useState<HUDPreset | null>(null)
 
-    const isInline = hudUrl === INLINE_HUD_ID
+    const isInline = isInlineHUDUrl(hudUrl)
 
     const handleModeChange = (newMode: 'preset' | 'custom') => {
       setMode(newMode)

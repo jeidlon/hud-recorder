@@ -9,8 +9,8 @@ import { StatusBar } from '@/components/layout/StatusBar'
 import { VideoDropzone } from '@/components/video/VideoDropzone'
 import { VideoPlayer } from '@/components/video/VideoPlayer'
 import { HUDContainer } from '@/components/hud/HUDContainer'
-import { HUDSelector, INLINE_HUD_ID } from '@/components/hud/HUDSelector'
-import { InlineTargetLockHUD } from '@/components/hud/InlineTargetLockHUD'
+import { HUDSelector, isInlineHUDUrl, getPresetIdFromInlineUrl } from '@/components/hud/HUDSelector'
+import { getPresetById } from '@/presets'
 import { ControlPanel, type ControlPanelHandle } from '@/components/controls/ControlPanel'
 import { checkWebCodecsSupport } from '@/utils/checkSupport'
 import { useAppStore } from '@/store/useAppStore'
@@ -54,7 +54,12 @@ function App() {
   const hudStateCallbackRef = useRef<((state: HUDState) => void) | null>(null)
 
   // 내장 HUD 사용 여부
-  const isInlineHUD = hudUrl === INLINE_HUD_ID
+  const isInlineHUD = isInlineHUDUrl(hudUrl)
+  
+  // 현재 선택된 프리셋의 HUD 컴포넌트 가져오기
+  const currentPresetId = getPresetIdFromInlineUrl(hudUrl)
+  const currentPreset = currentPresetId ? getPresetById(currentPresetId) : null
+  const InlineHUDComponent = currentPreset?.component || null
 
   useEffect(() => {
     checkWebCodecsSupport().then((result) => {
@@ -298,16 +303,16 @@ function App() {
                     className="absolute inset-0 pointer-events-auto"
                     style={{ zIndex: 10 }}
                   >
-                    {isInlineHUD ? (
-                      // 내장 HUD
-                      <InlineTargetLockHUD
+                    {isInlineHUD && InlineHUDComponent ? (
+                      // 내장 HUD (프리셋 컴포넌트 동적 렌더링)
+                      <InlineHUDComponent
                         width={videoMetadata.width}
                         height={videoMetadata.height}
                         isPlaying={isPlaying}
                         onStateUpdate={handleHUDStateUpdate}
                         onReady={() => setHudReady(true)}
                       />
-                    ) : (
+                    ) : !isInlineHUD ? (
                       // 외부 HUD (iframe)
                       <HUDContainer
                         hudUrl={hudUrl}
@@ -319,7 +324,7 @@ function App() {
                         onStateUpdate={handleHUDStateUpdate}
                         onError={(err) => console.error('HUD Error:', err)}
                       />
-                    )}
+                    ) : null}
                   </div>
                 )}
               </motion.div>

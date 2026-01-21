@@ -18,8 +18,9 @@
 
 import { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Crosshair, Clock } from 'lucide-react'
+import { Crosshair, Clock, Gamepad2 } from 'lucide-react'
 import { TargetLockHUD } from './TargetLockHUD'
+import { DreamPersonaHUD } from './DreamPersonaHUD'
 import type { HUDState } from '@/types/hud-protocol'
 
 // HUD 컴포넌트의 공통 Props 인터페이스
@@ -48,6 +49,14 @@ export interface HUDPreset {
  */
 export const hudPresets: HUDPreset[] = [
   {
+    id: 'dream-persona',
+    name: '몽중게임 HUD',
+    description: '7가지 시나리오 | 레트로-퓨처리스틱',
+    icon: Gamepad2,
+    component: DreamPersonaHUD,
+    available: true,
+  },
+  {
     id: 'target-lock',
     name: 'Target Lock',
     description: '크로스헤어 + 타겟 락온',
@@ -58,14 +67,6 @@ export const hudPresets: HUDPreset[] = [
   // ─────────────────────────────────────────────
   // 새 프리셋은 여기에 추가하세요!
   // ─────────────────────────────────────────────
-  // {
-  //   id: 'health-bar',
-  //   name: 'Health Bar',
-  //   description: '체력바 + 마나바',
-  //   icon: Heart,
-  //   component: HealthBarHUD,
-  //   available: true,
-  // },
   {
     id: 'coming-soon',
     name: 'Coming Soon...',
