@@ -528,7 +528,6 @@ function drawPlayerStats(
   ctx.fillText(`Lv.${stats.level}`, x + panelWidth - 50, y + 45)
 
   // 체력바
-  const hpRatio = stats.hp / stats.maxHp
   const isLowHealth = scenario === 'low_health' || stats.hp < stats.maxHp * 0.3
   drawStatBar(
     ctx, x + 15, y + 60, panelWidth - 30, 18,
@@ -657,7 +656,7 @@ function drawRetroPanel(
 function drawMinimap(
   ctx: CanvasRenderingContext2D,
   screenWidth: number,
-  mousePos: { x: number; y: number },
+  _mousePos: { x: number; y: number },
   scenario: HUDScenario,
   enemy: EnemyData,
   time: number
@@ -735,10 +734,10 @@ function drawStatusBar(
   ctx: CanvasRenderingContext2D,
   w: number, h: number,
   scenario: HUDScenario,
-  stats: PlayerStats,
+  _stats: PlayerStats,
   cooldown: number,
   maxCooldown: number,
-  time: number
+  _time: number
 ) {
   const barWidth = 400
   const barHeight = 40
@@ -788,7 +787,7 @@ function drawScenarioIndicator(
   ctx: CanvasRenderingContext2D,
   w: number,
   scenario: HUDScenario,
-  time: number
+  _time: number
 ) {
   const text = `[ DREAM PERSONA :: ${SCENARIO_NAMES[scenario]} ]`
   
@@ -810,7 +809,7 @@ function drawScenarioIndicator(
   ctx.textAlign = 'left'
 }
 
-function drawKeyHints(ctx: CanvasRenderingContext2D, w: number, h: number) {
+function drawKeyHints(ctx: CanvasRenderingContext2D, _w: number, h: number) {
   const hints = [
     '[1] 탐색',
     '[2] 감지',
@@ -830,7 +829,7 @@ function drawKeyHints(ctx: CanvasRenderingContext2D, w: number, h: number) {
   const y = h - 15
   let currentX = startX
   
-  hints.forEach((hint, i) => {
+  hints.forEach((hint) => {
     ctx.fillText(hint, currentX, y)
     currentX += ctx.measureText(hint).width + 15
   })
@@ -844,7 +843,7 @@ function drawExplorationHUD(
   ctx: CanvasRenderingContext2D,
   w: number, h: number,
   mousePos: { x: number; y: number },
-  time: number
+  _time: number
 ) {
   // 평화로운 탐색 모드 - 나침반 표시
   const compassX = w - 100
@@ -895,7 +894,7 @@ function drawExplorationHUD(
 
 function drawEnemyDetectedHUD(
   ctx: CanvasRenderingContext2D,
-  w: number, h: number,
+  w: number, _h: number,
   mousePos: { x: number; y: number },
   enemy: EnemyData,
   time: number
@@ -942,13 +941,13 @@ function drawEnemyDetectedHUD(
 
 function drawTargetLockHUD(
   ctx: CanvasRenderingContext2D,
-  w: number, h: number,
+  _w: number, h: number,
   mousePos: { x: number; y: number },
   isLocked: boolean,
   lockedPos: { x: number; y: number },
   lockProgress: number,
   enemy: EnemyData,
-  time: number
+  _time: number
 ) {
   const targetPos = isLocked ? lockedPos : mousePos
 
@@ -1016,7 +1015,7 @@ function drawCombatHUD(
   cooldown: number,
   maxCooldown: number,
   stats: PlayerStats,
-  enemy: EnemyData,
+  _enemy: EnemyData,
   time: number
 ) {
   // 전투 UI - 공격 레티클 강화
@@ -1317,7 +1316,7 @@ function drawNoise(
 function drawGlitchBars(
   ctx: CanvasRenderingContext2D,
   w: number, h: number,
-  time: number
+  _time: number
 ) {
   // 수평 글리치 바 (랜덤 위치에 수평 라인)
   const numBars = Math.floor(Math.random() * 5) + 2
@@ -1362,7 +1361,7 @@ function drawGlitchBars(
 
 function drawBloodDrip(
   ctx: CanvasRenderingContext2D,
-  w: number, h: number,
+  w: number, _h: number,
   time: number,
   intensity: number
 ) {
@@ -1624,7 +1623,7 @@ function drawEKGLine(
 
 function drawCrosshair(
   ctx: CanvasRenderingContext2D,
-  mousePos: { x: number; y: number },
+  _mousePos: { x: number; y: number },
   targetPos: { x: number; y: number },
   scenario: HUDScenario,
   isLocked: boolean,

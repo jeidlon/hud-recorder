@@ -16,7 +16,7 @@
  * }
  */
 
-import { ComponentType } from 'react'
+import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Crosshair, Clock, Gamepad2 } from 'lucide-react'
 import { TargetLockHUD } from './TargetLockHUD'
