@@ -13,12 +13,10 @@
  * ════════════════════════════════════════════════════════════════════════════
  */
 
-import { 
-  WIN98_THEMES, 
-  SCENARIO_COLORS, 
-  FONTS, 
-  type Win98Theme, 
-  type ScenarioId 
+import {
+  WIN98_THEMES,
+  FONTS,
+  type Win98Theme,
 } from './constants'
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -186,7 +184,7 @@ export function drawArwesOctagonFrame(
 
   // Background path - ARWES Octagon 패턴 직접 구현
   ctx.beginPath()
-  
+
   // Start from left side
   if (leftTop) {
     ctx.moveTo(x + p + so, y + p + so + ss)
@@ -294,7 +292,7 @@ export function drawArwesKranoxFrame(
 
   // Background - Kranox 복잡한 다각형
   ctx.beginPath()
-  
+
   // Left-bottom to left-top
   ctx.moveTo(x + p + ss * 2, y + h - p - strokeWidth * 2)
   ctx.lineTo(x + p + ss, y + h - p - strokeWidth * 2 - ss)
@@ -304,10 +302,10 @@ export function drawArwesKranoxFrame(
   ctx.lineTo(x + p + ss, y + p + strokeWidth * 2 + sll + ss)
   ctx.lineTo(x + p + ss, y + p + strokeWidth + ss)
   ctx.lineTo(x + p + ss * 2 - strokeWidth, y + p + strokeWidth * 2)
-  
+
   // Left-top to right-top
   ctx.lineTo(x + w - p - ss * 2, y + p + strokeWidth * 2)
-  
+
   // Right-top to right-bottom
   ctx.lineTo(x + w - p - ss, y + p + strokeWidth * 2 + ss)
   ctx.lineTo(x + w - p - ss, y + h - p - strokeWidth * 2 - ss * 3 - sll - lll)
@@ -316,7 +314,7 @@ export function drawArwesKranoxFrame(
   ctx.lineTo(x + w - p - ss, y + h - p - strokeWidth * 2 - ss - sll)
   ctx.lineTo(x + w - p - ss, y + h - p - strokeWidth - ss)
   ctx.lineTo(x + w - p - ss * 2 + strokeWidth, y + h - p - strokeWidth * 2)
-  
+
   ctx.closePath()
 
   ctx.fillStyle = bgColor
@@ -445,7 +443,7 @@ export function calculateTransition(
 ): { progress: number; complete: boolean } {
   const elapsed = (currentTime - state.startTime) / 1000
   const rawProgress = Math.min(1, elapsed / state.duration)
-  
+
   let progress: number
   switch (state.phase) {
     case 'entering':
@@ -488,7 +486,7 @@ const controlColors: Record<string, { minimize: string; maximize: string; close:
 export function drawWindowControls(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   props: WindowControlsProps,
-  time: number,
+  _time: number,
   hoverIndex: number = -1 // -1: none, 0: minimize, 1: maximize, 2: close
 ): void {
   const { x, y, theme } = props
@@ -501,7 +499,7 @@ export function drawWindowControls(
   // 버튼 그리기 함수
   const drawButton = (bx: number, color: string, icon: 'min' | 'max' | 'close', index: number) => {
     const isHovered = hoverIndex === index
-    
+
     // 버튼 배경
     ctx.fillStyle = isHovered ? color : `${color}88`
     ctx.beginPath()
@@ -567,7 +565,7 @@ export function drawHitMarker(
 ): boolean {
   const elapsed = (currentTime - marker.startTime) / 1000
   const duration = marker.type === 'critical' ? 0.5 : 0.3
-  
+
   if (elapsed > duration) return false
 
   const progress = elapsed / duration
@@ -580,8 +578,8 @@ export function drawHitMarker(
   ctx.globalAlpha = fade
 
   // 색상 설정
-  const color = marker.type === 'critical' ? '#FF0000' : 
-                marker.type === 'headshot' ? '#FFFF00' : '#FFFFFF'
+  const color = marker.type === 'critical' ? '#FF0000' :
+    marker.type === 'headshot' ? '#FFFF00' : '#FFFFFF'
 
   ctx.strokeStyle = color
   ctx.lineWidth = marker.type === 'critical' ? 3 : 2
@@ -677,7 +675,7 @@ export function drawWin98Window(
   const titleBarX = x + borderWidth + 1
   const titleBarY = y + borderWidth + 1
   const titleBarWidth = w - borderWidth * 2 - 2
-  
+
   const gradient = ctx.createLinearGradient(titleBarX, titleBarY, titleBarX + titleBarWidth, titleBarY)
   gradient.addColorStop(0, colors.titleGradientStart)
   gradient.addColorStop(1, colors.titleGradientEnd)
@@ -702,14 +700,14 @@ export function drawWin98Window(
     const buttonSpacing = 2
     const buttons = ['─', '□', '✕']
     const buttonColors = [colors.controlBg, colors.controlBg, '#CC3333']
-    
+
     for (let i = 0; i < 3; i++) {
       const buttonX = titleBarX + titleBarWidth - (3 - i) * (controlButtonSize + buttonSpacing) - 4
-      
+
       // 버튼 배경
       ctx.fillStyle = buttonColors[i]
       ctx.fillRect(buttonX, buttonY, controlButtonSize, controlButtonSize)
-      
+
       // 입체감 - 밝은 면 (좌상단)
       ctx.strokeStyle = 'rgba(255,255,255,0.5)'
       ctx.lineWidth = 1
@@ -718,7 +716,7 @@ export function drawWin98Window(
       ctx.lineTo(buttonX, buttonY)
       ctx.lineTo(buttonX + controlButtonSize, buttonY)
       ctx.stroke()
-      
+
       // 입체감 - 어두운 면 (우하단)
       ctx.strokeStyle = 'rgba(0,0,0,0.5)'
       ctx.beginPath()
@@ -726,7 +724,7 @@ export function drawWin98Window(
       ctx.lineTo(buttonX + controlButtonSize, buttonY + controlButtonSize)
       ctx.lineTo(buttonX, buttonY + controlButtonSize)
       ctx.stroke()
-      
+
       // 버튼 아이콘
       ctx.fillStyle = colors.titleText
       ctx.font = 'bold 10px Arial'
@@ -743,7 +741,7 @@ export function drawWin98Window(
   const contentY = titleBarY + titleBarHeight + 2
   const contentWidth = titleBarWidth
   const contentHeight = h - borderWidth * 2 - titleBarHeight - 6
-  
+
   ctx.fillStyle = colors.contentBg
   ctx.fillRect(contentX, contentY, contentWidth, contentHeight)
 
@@ -754,28 +752,28 @@ export function drawWin98Window(
   ctx.strokeStyle = colors.innerBorder
   ctx.lineWidth = 2
   ctx.lineCap = 'round'
-  
+
   // 좌상단
   ctx.beginPath()
   ctx.moveTo(x + borderWidth, y + borderWidth + cornerLength)
   ctx.lineTo(x + borderWidth, y + borderWidth)
   ctx.lineTo(x + borderWidth + cornerLength, y + borderWidth)
   ctx.stroke()
-  
+
   // 우상단
   ctx.beginPath()
   ctx.moveTo(x + w - borderWidth - cornerLength, y + borderWidth)
   ctx.lineTo(x + w - borderWidth, y + borderWidth)
   ctx.lineTo(x + w - borderWidth, y + borderWidth + cornerLength)
   ctx.stroke()
-  
+
   // 좌하단
   ctx.beginPath()
   ctx.moveTo(x + borderWidth, y + h - borderWidth - cornerLength)
   ctx.lineTo(x + borderWidth, y + h - borderWidth)
   ctx.lineTo(x + borderWidth + cornerLength, y + h - borderWidth)
   ctx.stroke()
-  
+
   // 우하단
   ctx.beginPath()
   ctx.moveTo(x + w - borderWidth - cornerLength, y + h - borderWidth)
@@ -808,14 +806,14 @@ export function drawDayIndicator(
   time: number
 ): void {
   ctx.save()
-  
+
   ctx.font = 'bold 14px "JetBrains Mono", monospace'
   ctx.fillStyle = color
   ctx.textAlign = 'right'
   ctx.shadowColor = color
   ctx.shadowBlur = 8 + Math.sin(time * 2) * 3
   ctx.fillText(`DAY ${day}`, x, y)
-  
+
   ctx.restore()
 }
 
@@ -837,7 +835,7 @@ export function drawTeamPanel(
   team: TeamMember[],
   color: string,
   bgColor: string,
-  time: number
+  _time: number
 ): void {
   const rowHeight = 22
   const h = 30 + team.length * rowHeight
@@ -866,24 +864,24 @@ export function drawTeamPanel(
   ctx.font = '11px "JetBrains Mono", monospace'
   team.forEach((member, i) => {
     const my = y + 26 + i * rowHeight
-    
+
     // 이름
     ctx.fillStyle = color
     ctx.fillText(`[${member.realName}/${member.personaName}]`, x + 8, my + 6)
-    
+
     // HP 바
     const barX = x + 140
     const barW = w - 150
     const barH = 10
     const ratio = member.hp / member.maxHp
-    
+
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
     ctx.fillRect(barX, my - 2, barW, barH)
-    
+
     const hpColor = ratio < 0.3 ? '#FF4444' : color
     ctx.fillStyle = hpColor
     ctx.fillRect(barX + 1, my - 1, (barW - 2) * ratio, barH - 2)
-    
+
     ctx.fillText(`${member.hp}%`, barX + barW + 8, my + 6)
   })
 
@@ -902,10 +900,10 @@ export interface Quest {
 
 export function drawQuestPanel(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  x: number, y: number, w: number,
+  x: number, y: number, _w: number,
   quest: Quest,
   color: string,
-  time: number
+  _time: number
 ): void {
   ctx.save()
 
@@ -913,7 +911,7 @@ export function drawQuestPanel(
   ctx.fillStyle = color
   ctx.textAlign = 'left'
   ctx.fillText('QUEST:', x, y)
-  
+
   ctx.font = '11px "Noto Sans KR", sans-serif'
   ctx.fillText(`${quest.name} (${quest.progress}/${quest.total})`, x, y + 16)
 
@@ -996,7 +994,7 @@ export function drawLoginPopup(
   }
 
   ctx.fillText(statusDetail, w / 2, popupY + 85)
-  
+
   ctx.font = '16px "Noto Sans KR", sans-serif'
   ctx.fillText(statusText, w / 2, popupY + 115)
 

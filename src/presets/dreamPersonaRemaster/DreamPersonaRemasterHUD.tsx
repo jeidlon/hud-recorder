@@ -35,9 +35,9 @@ import * as React from 'react'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import type { HUDComponentProps } from '../index'
 
-import { type ScenarioId, SCENARIOS, THEMES, SCENARIO_COLORS } from './constants'
-import { 
-  drawScenarioHUD, 
+import { type ScenarioId, SCENARIO_COLORS } from './constants'
+import {
+  drawScenarioHUD,
   drawCommonHUD,
   getScenarioVFX,
   type HUDState,
@@ -72,7 +72,7 @@ const createInitialState = (width: number, height: number): HUDState => ({
   isLocked: false,
   lockProgress: 0,
   isFiring: false,
-  
+
   player: {
     health: 100,
     maxHealth: 100,
@@ -80,7 +80,7 @@ const createInitialState = (width: number, height: number): HUDState => ({
     infectionLevel: 0,
     evolutionProgress: 0,
   },
-  
+
   target: {
     name: '렙틸리언',
     health: 850,
@@ -88,7 +88,7 @@ const createInitialState = (width: number, height: number): HUDState => ({
     distance: 45.5,
     threatLevel: 'high',
   },
-  
+
   effects: {
     damageFlash: 0,
     glitchIntensity: 0,
@@ -127,11 +127,11 @@ export function DreamPersonaRemasterHUD({
   const hasCalledReady = useRef(false)
   const onStateUpdateRef = useRef(onStateUpdate)
   onStateUpdateRef.current = onStateUpdate
-  
+
   // VFX 프로세서 (react-vfx 셰이더 사용)
   const vfxProcessorRef = useRef<VFXPostProcessor | null>(null)
   const [vfxEnabled, setVfxEnabled] = useState(true)
-  
+
   // 상태 업데이트 스로틀링
   const lastStateUpdateRef = useRef(0)
 
@@ -144,7 +144,7 @@ export function DreamPersonaRemasterHUD({
   const [state, setState] = useState<HUDState>(() => createInitialState(width, height))
   const stateRef = useRef(state)
   stateRef.current = state
-  
+
   // 확장 상태 (Hit Marker, Login Popup 등)
   const extendedStateRef = useRef<ExtendedHUDState>({
     ...createInitialState(width, height),
@@ -154,7 +154,7 @@ export function DreamPersonaRemasterHUD({
   // 마우스 상태
   const [isMouseDown, setIsMouseDown] = useState(false)
   const [isFiring, setIsFiring] = useState(false)
-  
+
   // 현재 적용 중인 VFX 표시
   const [currentVFX, setCurrentVFX] = useState<VFXShaderPreset>('none')
 
@@ -169,7 +169,7 @@ export function DreamPersonaRemasterHUD({
       hudCanvasRef.current.width = width
       hudCanvasRef.current.height = height
     }
-    
+
     // VFX 프로세서 초기화 (react-vfx 셰이더 사용)
     if (!vfxProcessorRef.current) {
       const vfxCanvas = document.createElement('canvas')
@@ -178,12 +178,12 @@ export function DreamPersonaRemasterHUD({
       vfxProcessorRef.current = new VFXPostProcessor(vfxCanvas)
       console.log('🎮 VFX Processor initialized (react-vfx shaders)')
     }
-    
+
     if (!hasCalledReady.current) {
       hasCalledReady.current = true
       onReady?.()
     }
-    
+
     return () => {
       vfxProcessorRef.current?.dispose()
       vfxProcessorRef.current = null
@@ -251,12 +251,12 @@ export function DreamPersonaRemasterHUD({
       if (e.code === 'KeyQ') {
         setPerformanceMode(prev => prev === 'high' ? 'low' : 'high')
       }
-      
+
       // V: VFX 토글 (react-vfx 셰이더)
       if (e.code === 'KeyV') {
         setVfxEnabled(prev => !prev)
       }
-      
+
       // L: 로그인 팝업 토글
       if (e.code === 'KeyL') {
         const popup = extendedStateRef.current.loginPopup
@@ -286,8 +286,8 @@ export function DreamPersonaRemasterHUD({
             return { ...prev, isLocked: !prev.isLocked }
           }
           if (prev.scenario === 'evolved') {
-            return { 
-              ...prev, 
+            return {
+              ...prev,
               player: { ...prev.player, evolutionProgress: 100 }
             }
           }
@@ -330,21 +330,21 @@ export function DreamPersonaRemasterHUD({
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsMouseDown(true)
-    
+
     // Combat 시나리오에서 발사 및 Hit Marker 생성
     if (stateRef.current.scenario === 'combat') {
       setIsFiring(true)
-      
+
       // Hit Marker 추가
       const rect = e.currentTarget.getBoundingClientRect()
       const x = ((e.clientX - rect.left) / rect.width) * width
       const y = ((e.clientY - rect.top) / rect.height) * height
-      
+
       // 크리티컬/헤드샷 확률
       const rand = Math.random()
       const hitType: HitMarker['type'] = rand > 0.9 ? 'headshot' : rand > 0.7 ? 'critical' : 'normal'
       const damage = hitType === 'headshot' ? 150 : hitType === 'critical' ? 80 : Math.floor(30 + Math.random() * 20)
-      
+
       const marker: HitMarker = {
         x,
         y,
@@ -352,9 +352,9 @@ export function DreamPersonaRemasterHUD({
         type: hitType,
         damage,
       }
-      
+
       extendedStateRef.current.hitMarkers.push(marker)
-      
+
       // 타겟 체력 감소 (락온 시)
       if (stateRef.current.isLocked && stateRef.current.target) {
         setState(prev => ({
@@ -417,7 +417,7 @@ export function DreamPersonaRemasterHUD({
         // isFiring 상태 반영
         return { ...prev, time, effects, player, isFiring }
       })
-      
+
       // 확장 상태 동기화
       extendedStateRef.current = {
         ...stateRef.current,
@@ -425,13 +425,13 @@ export function DreamPersonaRemasterHUD({
         loginPopup: extendedStateRef.current.loginPopup,
         scenarioTransition: extendedStateRef.current.scenarioTransition,
       }
-      
+
       // 로그인 팝업 진행
       const popup = extendedStateRef.current.loginPopup
       if (popup.visible && popup.progress < 1) {
         const dt = 1 / 60
         const newProgress = Math.min(1, popup.progress + dt * 0.5)
-        
+
         // 진행 단계 업데이트
         let newPhase: LoginPopupState['phase'] = popup.phase
         if (newProgress > 0.3 && popup.phase === 'connecting') {
@@ -440,13 +440,13 @@ export function DreamPersonaRemasterHUD({
         if (newProgress >= 1) {
           newPhase = 'complete'
         }
-        
+
         extendedStateRef.current.loginPopup = {
           ...popup,
           progress: newProgress,
           phase: newPhase,
         }
-        
+
         // 완료 시 팝업 자동 닫기 및 SYNC 시나리오로 전환
         if (newProgress >= 1 && stateRef.current.scenario !== 'sync') {
           setTimeout(() => {
@@ -468,13 +468,13 @@ export function DreamPersonaRemasterHUD({
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    
+
     // HUD 렌더링용 오프스크린 캔버스
     const hudCanvas = hudCanvasRef.current
     if (!hudCanvas) return
     const hudCtx = hudCanvas.getContext('2d')
     if (!hudCtx) return
-    
+
     // 캔버스 크기 동기화
     if (hudCanvas.width !== width || hudCanvas.height !== height) {
       hudCanvas.width = width
@@ -514,24 +514,24 @@ export function DreamPersonaRemasterHUD({
       drawCommonHUD(hudCtx, width, height, currentState)
 
       // 비네트 (시나리오별 강도)
-      const vignetteIntensity = currentState.scenario === 'trauma' ? 0.5 : 
-                                 currentState.scenario === 'combat' ? 0.3 : 0.2
+      const vignetteIntensity = currentState.scenario === 'trauma' ? 0.5 :
+        currentState.scenario === 'combat' ? 0.3 : 0.2
       drawVignette(hudCtx, width, height, currentState.scenario, vignetteIntensity)
 
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // Step 2: VFX 후처리 적용 (react-vfx 셰이더)
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       ctx.clearRect(0, 0, width, height)
-      
+
       if (vfxEnabled && vfxProcessorRef.current && performanceMode === 'high') {
         // 현재 상태에 맞는 VFX 결정
         const vfxResult = getScenarioVFX(currentState)
-        
+
         // VFX 상태 업데이트 (UI 표시용)
         if (vfxResult.shader !== currentVFX) {
           setCurrentVFX(vfxResult.shader)
         }
-        
+
         // VFX 적용
         if (vfxResult.shader !== 'none' && vfxResult.intensity > 0.1) {
           vfxProcessorRef.current.apply(
@@ -556,23 +556,23 @@ export function DreamPersonaRemasterHUD({
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // Step 3: UI 오버레이 (VFX 영향 받지 않음)
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      
+
       // 로그인 팝업 렌더링
       if (extendedStateRef.current.loginPopup.visible) {
         drawLoginPopup(ctx, width, height, extendedStateRef.current.loginPopup, currentState.time)
       }
-      
+
       // 성능 모드 표시
       ctx.save()
       ctx.font = '10px monospace'
       ctx.fillStyle = performanceMode === 'low' ? '#FFAA00' : '#00FF88'
       ctx.textAlign = 'right'
       ctx.fillText(`[Q] ${performanceMode === 'low' ? '저사양 30fps' : '고성능 60fps'}`, width - 20, height - 55)
-      
+
       // VFX 상태 표시
       ctx.fillStyle = vfxEnabled ? '#00FFFF' : '#FF6600'
       ctx.fillText(`[V] VFX: ${vfxEnabled ? currentVFX : 'OFF'}`, width - 20, height - 40)
-      
+
       // 로그인 팝업 힌트
       ctx.fillStyle = '#88AAFF'
       ctx.fillText(`[L] Login Popup`, width - 20, height - 25)
@@ -584,16 +584,16 @@ export function DreamPersonaRemasterHUD({
         lastStateUpdateRef.current = now
         onStateUpdateRef.current?.({
           timestamp: now,
-          mouse: { 
-            x: currentState.mouse.x, 
-            y: currentState.mouse.y, 
-            buttons: isMouseDown ? 1 : 0 
+          mouse: {
+            x: currentState.mouse.x,
+            y: currentState.mouse.y,
+            buttons: isMouseDown ? 1 : 0
           },
           targets: {
-            main: { 
-              x: currentState.mouse.x, 
-              y: currentState.mouse.y, 
-              locked: currentState.isLocked 
+            main: {
+              x: currentState.mouse.x,
+              y: currentState.mouse.y,
+              locked: currentState.isLocked
             },
           },
           customData: {

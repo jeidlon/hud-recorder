@@ -175,7 +175,7 @@ export function drawGridLines(
   ctx: DrawContext,
   w: number, h: number,
   scenario: ScenarioId,
-  time: number,
+  _time: number,
   alpha: number = 1
 ) {
   const theme = THEMES[scenario]
@@ -224,7 +224,7 @@ export function drawDots(
   ctx: DrawContext,
   w: number, h: number,
   scenario: ScenarioId,
-  time: number,
+  _time: number,
   origin: { x: number; y: number } = { x: w / 2, y: h / 2 },
   progress: number = 1
 ) {
@@ -651,10 +651,9 @@ export function drawCurvedScreenEffect(
 export function drawVignette(
   ctx: DrawContext,
   w: number, h: number,
-  scenario: ScenarioId,
+  _scenario: ScenarioId,
   intensity: number = 0.4
 ) {
-  const theme = THEMES[scenario]
   const centerX = w / 2
   const centerY = h / 2
   const radius = Math.max(w, h) * 0.7
@@ -1421,7 +1420,6 @@ export function drawECGWaveform(
     const s = beatX + beatWidth * 0.45
 
     // T파 (완만한 올라감)
-    const t1 = beatX + beatWidth * 0.6
     const t2 = beatX + beatWidth * 0.7
     const t3 = beatX + beatWidth * 0.8
 
@@ -1655,7 +1653,6 @@ export function drawReaperBossPanel(
     time
   )
 
-  const contentX = x + 15
   const contentY = y + 45
 
   ctx.save()
@@ -1881,7 +1878,7 @@ export function drawGoldenParticles(
   ctx: DrawContext,
   width: number,
   height: number,
-  time: number,
+  _time: number,
   count: number = 50
 ): void {
   // 초기화 또는 크기 변경 시 재생성

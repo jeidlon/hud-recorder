@@ -7,6 +7,9 @@
  * - 더 높은 성능
  */
 
+// WebGPU는 아직 모든 브라우저에서 지원되지 않으므로 타입을 any로 처리
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export interface WebGPUCompositorConfig {
   width: number
   height: number
@@ -175,27 +178,34 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
 }
 `
 
+// WebGPU Buffer 사용 플래그 상수
+const GPU_BUFFER_USAGE_UNIFORM = 0x0040
+const GPU_BUFFER_USAGE_COPY_DST = 0x0008
+const GPU_TEXTURE_USAGE_TEXTURE_BINDING = 0x0004
+const GPU_TEXTURE_USAGE_COPY_DST = 0x0002
+const GPU_TEXTURE_USAGE_RENDER_ATTACHMENT = 0x0010
+
 export class WebGPUCompositor {
-  private device: GPUDevice
-  private pipeline: GPURenderPipeline
-  private sampler: GPUSampler
+  private device: any      // GPUDevice
+  private pipeline: any    // GPURenderPipeline
+  private sampler: any     // GPUSampler
   private outputCanvas: OffscreenCanvas
-  private context: GPUCanvasContext
+  private context: any     // GPUCanvasContext
   private config: WebGPUCompositorConfig
-  
+
   // Uniform buffer for effects
-  private uniformBuffer: GPUBuffer
+  private uniformBuffer: any  // GPUBuffer
   private uniformData: Float32Array
-  
+
   private frameIndex = 0
 
   private constructor(
-    device: GPUDevice,
-    pipeline: GPURenderPipeline,
-    sampler: GPUSampler,
+    device: any,
+    pipeline: any,
+    sampler: any,
     outputCanvas: OffscreenCanvas,
-    context: GPUCanvasContext,
-    uniformBuffer: GPUBuffer,
+    context: any,
+    uniformBuffer: any,
     config: WebGPUCompositorConfig
   ) {
     this.device = device
@@ -205,7 +215,7 @@ export class WebGPUCompositor {
     this.context = context
     this.uniformBuffer = uniformBuffer
     this.config = config
-    
+
     // [time, chromatic, bloom, scanlines, vignette, noise, resX, resY]
     this.uniformData = new Float32Array(8)
     this.uniformData[0] = 0 // time
@@ -222,42 +232,43 @@ export class WebGPUCompositor {
    * WebGPU Compositor 생성 (비동기)
    */
   static async create(
-    device: GPUDevice,
+    device: any,
     config: WebGPUCompositorConfig
   ): Promise<WebGPUCompositor> {
     const { width, height, effects } = config
-    
+
     // 출력 캔버스 생성
     const outputCanvas = new OffscreenCanvas(width, height)
-    const context = outputCanvas.getContext('webgpu')
-    
+    const context = outputCanvas.getContext('webgpu') as any
+
     if (!context) {
       throw new Error('Failed to get WebGPU context')
     }
-    
+
     // 캔버스 컨텍스트 설정
-    const format = navigator.gpu.getPreferredCanvasFormat()
+    const nav = navigator as any
+    const format = nav.gpu.getPreferredCanvasFormat()
     context.configure({
       device,
       format,
       alphaMode: 'opaque',
     })
-    
+
     // 셰이더 모듈 생성 (효과가 있으면 복잡한 셰이더, 없으면 단순 셰이더)
     const hasEffects = effects && Object.values(effects).some(v => v)
     const shaderCode = hasEffects ? COMPOSITOR_SHADER : SIMPLE_COMPOSITOR_SHADER
-    
+
     const shaderModule = device.createShaderModule({
       code: shaderCode,
     })
-    
+
     // 샘플러 생성
     const sampler = device.createSampler({
       magFilter: 'linear',
       minFilter: 'linear',
       mipmapFilter: 'linear',
     })
-    
+
     // 파이프라인 생성
     const pipeline = device.createRenderPipeline({
       layout: 'auto',
@@ -274,17 +285,17 @@ export class WebGPUCompositor {
         topology: 'triangle-list',
       },
     })
-    
+
     // Uniform buffer 생성 (효과용)
     const uniformBuffer = device.createBuffer({
       size: 32, // 8 floats * 4 bytes
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      usage: GPU_BUFFER_USAGE_UNIFORM | GPU_BUFFER_USAGE_COPY_DST,
     })
-    
+
     console.log('[WebGPUCompositor] Initialized')
     console.log(`[WebGPUCompositor] Resolution: ${width}x${height}`)
     console.log('[WebGPUCompositor] Effects:', effects)
-    
+
     return new WebGPUCompositor(
       device,
       pipeline,
@@ -305,25 +316,25 @@ export class WebGPUCompositor {
     timestamp: number
   ): VideoFrame {
     const { device, pipeline, sampler, context, config } = this
-    
+
     // Uniform 업데이트
     this.uniformData[0] = this.frameIndex / 60 // time in seconds
     device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData)
-    
+
     // 비디오 텍스처 생성 (external texture)
     const videoTexture = device.importExternalTexture({
       source: videoFrame,
     })
-    
+
     // HUD 텍스처 생성
-    let hudTexture: GPUTexture
+    let hudTexture: any
     if (hudCanvas) {
       hudTexture = device.createTexture({
         size: [config.width, config.height],
         format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+        usage: GPU_TEXTURE_USAGE_TEXTURE_BINDING | GPU_TEXTURE_USAGE_COPY_DST | GPU_TEXTURE_USAGE_RENDER_ATTACHMENT,
       })
-      
+
       // HUD 캔버스 데이터를 텍스처로 복사
       device.queue.copyExternalImageToTexture(
         { source: hudCanvas },
@@ -335,10 +346,10 @@ export class WebGPUCompositor {
       hudTexture = device.createTexture({
         size: [1, 1],
         format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING,
+        usage: GPU_TEXTURE_USAGE_TEXTURE_BINDING,
       })
     }
-    
+
     // 바인드 그룹 생성
     const bindGroup = device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
@@ -349,7 +360,7 @@ export class WebGPUCompositor {
         { binding: 3, resource: { buffer: this.uniformBuffer } },
       ],
     })
-    
+
     // 렌더 패스 실행
     const commandEncoder = device.createCommandEncoder()
     const renderPass = commandEncoder.beginRenderPass({
@@ -360,25 +371,25 @@ export class WebGPUCompositor {
         clearValue: { r: 0, g: 0, b: 0, a: 1 },
       }],
     })
-    
+
     renderPass.setPipeline(pipeline)
     renderPass.setBindGroup(0, bindGroup)
     renderPass.draw(6) // 풀스크린 쿼드
     renderPass.end()
-    
+
     device.queue.submit([commandEncoder.finish()])
-    
+
     // 임시 텍스처 정리
     hudTexture.destroy()
-    
+
     this.frameIndex++
-    
+
     // 결과를 VideoFrame으로 변환
     const resultFrame = new VideoFrame(this.outputCanvas, {
       timestamp,
       alpha: 'discard',
     })
-    
+
     return resultFrame
   }
 
@@ -391,7 +402,7 @@ export class WebGPUCompositor {
     this.uniformData[3] = effects?.scanlines ? 1 : 0
     this.uniformData[4] = effects?.vignette ? 1 : 0
     this.uniformData[5] = effects?.noise ? 1 : 0
-    
+
     console.log('[WebGPUCompositor] Effects updated:', effects)
   }
 
@@ -404,3 +415,4 @@ export class WebGPUCompositor {
     console.log('[WebGPUCompositor] Destroyed')
   }
 }
+

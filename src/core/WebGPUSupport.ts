@@ -2,10 +2,13 @@
  * WebGPU 지원 확인 유틸리티
  */
 
+// WebGPU는 아직 모든 브라우저에서 지원되지 않으므로 타입을 any로 처리
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export interface WebGPUSupportResult {
   supported: boolean
-  adapter: GPUAdapter | null
-  device: GPUDevice | null
+  adapter: any | null  // GPUAdapter
+  device: any | null   // GPUDevice
   features: string[]
   limits: Record<string, number>
   error?: string
@@ -23,7 +26,8 @@ export async function checkWebGPUSupport(): Promise<WebGPUSupportResult> {
   }
 
   // navigator.gpu 존재 확인
-  if (!navigator.gpu) {
+  const nav = navigator as any
+  if (!nav.gpu) {
     cachedResult = {
       supported: false,
       adapter: null,
@@ -37,7 +41,7 @@ export async function checkWebGPUSupport(): Promise<WebGPUSupportResult> {
 
   try {
     // 어댑터 요청
-    const adapter = await navigator.gpu.requestAdapter({
+    const adapter = await nav.gpu.requestAdapter({
       powerPreference: 'high-performance',
     })
 
@@ -60,7 +64,7 @@ export async function checkWebGPUSupport(): Promise<WebGPUSupportResult> {
     })
 
     // 지원되는 피처 목록
-    const features = Array.from(adapter.features)
+    const features: string[] = Array.from(adapter.features as Set<string>)
 
     // 리미트 정보
     const limits: Record<string, number> = {}
@@ -72,7 +76,7 @@ export async function checkWebGPUSupport(): Promise<WebGPUSupportResult> {
       'maxStorageBufferBindingSize',
     ]
     for (const key of limitKeys) {
-      const value = adapter.limits[key as keyof GPUSupportedLimits]
+      const value = adapter.limits[key]
       if (typeof value === 'number') {
         limits[key] = value
       }
@@ -107,6 +111,7 @@ export async function checkWebGPUSupport(): Promise<WebGPUSupportResult> {
 /**
  * 캐시된 WebGPU 디바이스 가져오기 (이미 초기화된 경우)
  */
-export function getCachedWebGPUDevice(): GPUDevice | null {
+export function getCachedWebGPUDevice(): any | null {
   return cachedResult?.device ?? null
 }
+

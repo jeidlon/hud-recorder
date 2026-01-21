@@ -12,7 +12,7 @@
  */
 
 import * as React from 'react'
-import { useMemo, useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import type { HUDComponentProps } from '@/presets/index'
 import type { HUDState } from '@/types/hud-protocol'
 import {
@@ -22,7 +22,6 @@ import {
   RemotionHUDProvider,
   interpolate,
   spring,
-  Easing,
   Sequence,
 } from './RemotionHUDWrapper'
 
@@ -48,21 +47,21 @@ const SPRING_PRESETS = {
 // ===== Animated Components =====
 
 /** 글리치 텍스트 */
-const GlitchText: React.FC<{ 
+const GlitchText: React.FC<{
   text: string
-  style?: React.CSSProperties 
+  style?: React.CSSProperties
   intensity?: number
 }> = ({ text, style, intensity = 1 }) => {
   const frame = useHUDFrame()
-  const { fps } = useHUDConfig()
-  
+  const { fps: _fps } = useHUDConfig()
+
   // 랜덤 글리치 (매 N프레임마다)
   const glitchFrame = Math.floor(frame / 3)
   const isGlitching = (glitchFrame % 7 === 0 || glitchFrame % 13 === 0) && intensity > 0
-  
+
   const offsetX = isGlitching ? (Math.sin(frame * 0.5) * 3 * intensity) : 0
   const offsetY = isGlitching ? (Math.cos(frame * 0.7) * 2 * intensity) : 0
-  
+
   return (
     <div style={{ position: 'relative', ...style }}>
       {/* 레드 채널 */}
@@ -116,7 +115,7 @@ const AnimatedBar: React.FC<{
 }> = ({ value, maxValue, color, label, delay = 0 }) => {
   const frame = useHUDFrame()
   const { fps } = useHUDConfig()
-  
+
   // 스프링으로 바 등장
   const barScale = spring({
     frame,
@@ -124,7 +123,7 @@ const AnimatedBar: React.FC<{
     delay,
     config: SPRING_PRESETS.snappy,
   })
-  
+
   // 값 애니메이션
   const percentage = (value / maxValue) * 100
   const animatedWidth = spring({
@@ -134,7 +133,7 @@ const AnimatedBar: React.FC<{
     config: SPRING_PRESETS.smooth,
     to: percentage,
   })
-  
+
   return (
     <div
       style={{
@@ -183,17 +182,17 @@ const Crosshair: React.FC<{
 }> = ({ x, y, isLocked, lockProgress = 0 }) => {
   const frame = useHUDFrame()
   const { fps } = useHUDConfig()
-  
+
   // 락온 시 스케일 애니메이션
   const lockedScale = isLocked
     ? spring({ frame, fps, config: SPRING_PRESETS.bouncy })
     : 1
-  
+
   // 회전 애니메이션
   const rotation = interpolate(frame, [0, fps * 4], [0, 360], {
     extrapolateRight: 'extend',
   })
-  
+
   // 펄스 효과
   const pulse = interpolate(
     frame % fps,
@@ -201,10 +200,10 @@ const Crosshair: React.FC<{
     [1, 1.1, 1],
     { extrapolateRight: 'clamp' }
   )
-  
+
   const color = isLocked ? COLORS.warning : COLORS.primary
   const size = 80 * lockedScale * (isLocked ? pulse : 1)
-  
+
   return (
     <div
       style={{
@@ -249,7 +248,7 @@ const Crosshair: React.FC<{
           </g>
         ))}
       </svg>
-      
+
       {/* 내부 크로스헤어 */}
       <svg
         width={50}
@@ -268,10 +267,10 @@ const Crosshair: React.FC<{
         <line x1="5" y1="0" x2="15" y2="0" stroke={color} strokeWidth="2" />
         <line x1="0" y1="-15" x2="0" y2="-5" stroke={color} strokeWidth="2" />
         <line x1="0" y1="5" x2="0" y2="15" stroke={color} strokeWidth="2" />
-        
+
         {/* 중앙 점 */}
         <circle r="2" fill={color} />
-        
+
         {/* 락온 진행도 */}
         {!isLocked && lockProgress > 0 && (
           <circle
@@ -284,7 +283,7 @@ const Crosshair: React.FC<{
           />
         )}
       </svg>
-      
+
       {/* 락온 텍스트 */}
       {isLocked && (
         <div
@@ -310,10 +309,10 @@ const Crosshair: React.FC<{
 /** 스캔라인 오버레이 */
 const Scanlines: React.FC = () => {
   const frame = useHUDFrame()
-  const { fps, height } = useHUDConfig()
-  
+  const { fps, height: _height } = useHUDConfig()
+
   const offset = (frame % (fps * 2)) * 2
-  
+
   return (
     <div
       style={{
@@ -338,11 +337,11 @@ const CyberpunkHUDContent: React.FC = () => {
   const frame = useHUDFrame()
   const { fps, width, height } = useHUDConfig()
   const hudState = useHUDState()
-  
+
   // 스태거드 UI 등장
   const panelDelay = 0
   const panelStagger = 5
-  
+
   // 상태 값들 (hudState에서 가져오거나 기본값)
   const hp = 85
   const maxHp = 100
@@ -350,18 +349,18 @@ const CyberpunkHUDContent: React.FC = () => {
   const maxEnergy = 100
   const shield = 45
   const maxShield = 100
-  
+
   // 마우스/타겟 위치
   const mouseX = hudState?.mouse?.x ?? width / 2
   const mouseY = hudState?.mouse?.y ?? height / 2
   const isLocked = hudState?.targets?.main?.locked ?? false
-  
+
   // 시간 표시 (프레임 기반)
   const seconds = Math.floor(frame / fps)
   const minutes = Math.floor(seconds / 60)
   const displaySeconds = seconds % 60
   const timeStr = `${minutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`
-  
+
   return (
     <div
       style={{
@@ -373,7 +372,7 @@ const CyberpunkHUDContent: React.FC = () => {
     >
       {/* 스캔라인 */}
       <Scanlines />
-      
+
       {/* 좌상단: 스탯 패널 */}
       <Sequence from={panelDelay}>
         <div
@@ -398,7 +397,7 @@ const CyberpunkHUDContent: React.FC = () => {
             }}
             intensity={0.5}
           />
-          
+
           <AnimatedBar
             value={hp}
             maxValue={maxHp}
@@ -406,7 +405,7 @@ const CyberpunkHUDContent: React.FC = () => {
             label="HP"
             delay={panelDelay + panelStagger}
           />
-          
+
           <AnimatedBar
             value={energy}
             maxValue={maxEnergy}
@@ -414,7 +413,7 @@ const CyberpunkHUDContent: React.FC = () => {
             label="ENERGY"
             delay={panelDelay + panelStagger * 2}
           />
-          
+
           <AnimatedBar
             value={shield}
             maxValue={maxShield}
@@ -424,7 +423,7 @@ const CyberpunkHUDContent: React.FC = () => {
           />
         </div>
       </Sequence>
-      
+
       {/* 우상단: 타임 & 좌표 */}
       <Sequence from={panelDelay + 10}>
         <div
@@ -447,7 +446,7 @@ const CyberpunkHUDContent: React.FC = () => {
           </div>
         </div>
       </Sequence>
-      
+
       {/* 하단 중앙: 상태 바 */}
       <Sequence from={panelDelay + 20}>
         <div
@@ -476,10 +475,10 @@ const CyberpunkHUDContent: React.FC = () => {
           </div>
         </div>
       </Sequence>
-      
+
       {/* 크로스헤어 */}
       <Crosshair x={mouseX} y={mouseY} isLocked={isLocked} />
-      
+
       {/* 코너 프레임 */}
       <svg
         style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
@@ -527,7 +526,7 @@ const CyberpunkHUDContent: React.FC = () => {
 export function CyberpunkHUD({
   width,
   height,
-  isPlaying,
+  isPlaying: _isPlaying,
   onStateUpdate,
   onReady,
 }: HUDComponentProps) {
@@ -538,7 +537,7 @@ export function CyberpunkHUD({
   const animationRef = useRef<number>(0)
   const lastTimeRef = useRef<number>(0)
   const fps = 60
-  
+
   // 마우스 이벤트
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -546,29 +545,29 @@ export function CyberpunkHUD({
     const y = ((e.clientY - rect.top) / rect.height) * height
     setMousePos({ x, y })
   }, [width, height])
-  
+
   const handleClick = useCallback(() => {
     setIsLocked((prev) => !prev)
   }, [])
-  
+
   // 프레임 루프
   useEffect(() => {
     const updateFrame = (timestamp: number) => {
       if (!lastTimeRef.current) lastTimeRef.current = timestamp
-      
+
       const delta = timestamp - lastTimeRef.current
       if (delta >= 1000 / fps) {
         lastTimeRef.current = timestamp
         setFrame((f) => f + 1)
       }
-      
+
       animationRef.current = requestAnimationFrame(updateFrame)
     }
-    
+
     animationRef.current = requestAnimationFrame(updateFrame)
     return () => cancelAnimationFrame(animationRef.current)
   }, [])
-  
+
   // 상태 업데이트
   useEffect(() => {
     const hudState: HUDState = {
@@ -580,12 +579,12 @@ export function CyberpunkHUD({
     }
     onStateUpdate?.(hudState)
   }, [mousePos, isLocked, onStateUpdate])
-  
+
   // Ready 알림
   useEffect(() => {
     onReady?.()
   }, [onReady])
-  
+
   return (
     <div
       ref={containerRef}

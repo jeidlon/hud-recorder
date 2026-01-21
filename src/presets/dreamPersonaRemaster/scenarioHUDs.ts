@@ -37,21 +37,17 @@ import {
   drawMovingLines,
   drawPuffs,
   drawIlluminator,
-  drawDecipherText,
-  decipherText,
   glitchText,
   drawScanlines,
   drawVignette,
   drawHologramEffect,
   drawCurvedScreenEffect,
   drawWin98Frame,
-  decipherTextForScenario,
   THEMES,
   SCENARIOS,
   FONTS,
   easing,
   SCENARIO_COLORS,
-  WIN98_THEMES,
 } from './arwesDrawing'
 
 // ARWES 코드 직접 사용
@@ -59,21 +55,17 @@ import {
   arwesEasing,
   drawArwesOctagonFrame,
   drawArwesKranoxFrame,
-  drawArwesGridLines,
   drawWindowControls,
   drawHitMarker,
-  drawLoginPopup,
-  drawWin98Window,
   drawDayIndicator,
   drawTeamPanel,
   drawQuestPanel,
   type HitMarker,
   type LoginPopupState,
   type TeamMember,
-  type Quest,
 } from './arwesCore'
 
-import { CHARACTERS, SCENARIO_WIN98_THEME, type Win98Theme } from './constants'
+import { CHARACTERS, SCENARIO_WIN98_THEME } from './constants'
 
 // VFX 셰이더 타입 (react-vfx에서 가져옴)
 import type { VFXShaderPreset } from './vfxShaders'
@@ -107,7 +99,7 @@ function drawPanel(
   title: string,
   scenario: ScenarioId,
   time: number,
-  options: { 
+  options: {
     glitch?: number
     showControls?: boolean
     frameStyle?: 'win98' | 'corners' | 'octagon' | 'kranox'
@@ -117,8 +109,8 @@ function drawPanel(
 ) {
   const theme = THEMES[scenario]
   const colors = SCENARIO_COLORS[scenario]
-  const { 
-    glitch = 0, 
+  const {
+    glitch = 0,
     showControls = true,
     frameStyle = 'win98',  // 기본값을 Win98로 변경
     transitionProgress = 1,
@@ -184,7 +176,7 @@ function drawPanel(
   } else {
     // 기본 코너 프레임
     drawFrameBackground(ctx, x, y, w, h, scenario, 0.85)
-    drawFrameCorners(ctx, x, y, w, h, scenario, time, { 
+    drawFrameCorners(ctx, x, y, w, h, scenario, time, {
       cornerLength: 12 * scale,
       progress: transitionProgress
     })
@@ -194,7 +186,7 @@ function drawPanel(
     ctx.shadowColor = theme.main(3)
     ctx.shadowBlur = 6
     ctx.fillText(displayTitle, x + 12, y + 18)
-    
+
     // OS 스타일 창 컨트롤 버튼
     if (showControls && transitionProgress > 0.5) {
       drawWindowControls(
@@ -246,7 +238,7 @@ function drawProgressBar(
     ctx.textAlign = 'left'
     ctx.shadowBlur = 0
     ctx.fillText(label, x + 4, y + h - 4)
-    
+
     ctx.textAlign = 'right'
     ctx.fillText(`${Math.floor(value)}/${maxValue}`, x + w - 4, y + h - 4)
   }
@@ -265,16 +257,16 @@ function drawTargetingReticle(
   const { locked = false, size = 20, firing = false } = options
 
   ctx.save()
-  
+
   // 발사 시 색상/크기 변화
   const fireScale = firing ? 1.2 : 1
   const displaySize = size * fireScale
-  
+
   ctx.strokeStyle = locked ? THEMES.combat.main(4) : theme.main(3)
   if (firing) {
     ctx.strokeStyle = '#FFFFFF'
   }
-  
+
   ctx.lineWidth = firing ? 3 : 2
   ctx.shadowColor = ctx.strokeStyle as string
   ctx.shadowBlur = locked ? 15 : (firing ? 20 : 8)
@@ -301,11 +293,11 @@ function drawTargetingReticle(
   // 락온 시 추가 박스 (ARWES FrameCorners 스타일)
   if (locked) {
     const boxSize = 45 + Math.sin(time * 5) * 5
-    drawFrameCorners(ctx, x - boxSize, y - boxSize, boxSize * 2, boxSize * 2, 'combat', time, { 
+    drawFrameCorners(ctx, x - boxSize, y - boxSize, boxSize * 2, boxSize * 2, 'combat', time, {
       cornerLength: 10,
-      strokeWidth: 2 
+      strokeWidth: 2
     })
-    
+
     // 락온 회전 링 (ARWES 스타일)
     ctx.beginPath()
     ctx.arc(x, y, boxSize + 10, time * 2, time * 2 + Math.PI * 0.5)
@@ -339,7 +331,6 @@ export function drawNormalScenario(
   state: HUDState
 ) {
   const { time, mouse, player } = state
-  const theme = THEMES.normal
   const colors = SCENARIO_COLORS.normal
 
   // ═══════════════════════════════════════════════════════════════
@@ -347,7 +338,7 @@ export function drawNormalScenario(
   // ═══════════════════════════════════════════════════════════════
   drawGridLines(ctx, w, h, 'normal', time, 0.35)
   drawDots(ctx, w, h, 'normal', time, { x: w / 2, y: h / 2 }, 0.8)
-  
+
   // 홀로그램 효과 (깜빡임, 색수차, 노이즈)
   drawHologramEffect(ctx, w, h, time, {
     flickerFrequency: 0.08,
@@ -355,7 +346,7 @@ export function drawNormalScenario(
     noiseDensity: 0.015,
     baseColor: colors.frameMain
   })
-  
+
   // CRT 커브 효과
   drawCurvedScreenEffect(ctx, w, h, 0.12)
 
@@ -371,10 +362,10 @@ export function drawNormalScenario(
   const bioY = 115
   ctx.fillText(`PERSONA: ${CHARACTERS.player.englishName}`, 35, bioY)
   ctx.fillText(`TYPE: ${CHARACTERS.player.type}`, 35, bioY + 18)
-  
+
   // 동기화 바
   drawProgressBar(ctx, 35, bioY + 30, 200, 14, 100, 100, 'normal', { label: 'SYNC' })
-  
+
   // 심박 그래프
   ctx.strokeStyle = colors.frameMain
   ctx.lineWidth = 1.5
@@ -390,7 +381,7 @@ export function drawNormalScenario(
     else if (beat > 0.45 && beat < 0.5) gy += 20
     else if (beat > 0.5 && beat < 0.55) gy -= 10
     else gy += Math.sin(phase * 0.5) * 2
-    
+
     if (i === 0) ctx.moveTo(gx, gy)
     else ctx.lineTo(gx, gy)
   }
@@ -451,7 +442,7 @@ export function drawNormalScenario(
   const barY = h - 45
   const barW = 350
   const barX = (w - barW) / 2
-  
+
   ctx.fillStyle = colors.bgPrimary
   ctx.fillRect(barX - 10, barY - 8, barW + 20, 35)
   ctx.strokeStyle = colors.frameMain
@@ -460,7 +451,7 @@ export function drawNormalScenario(
 
   // HP 바
   drawProgressBar(ctx, barX, barY, barW * 0.6 - 10, 16, player.health, player.maxHealth, 'normal', { label: 'HP' })
-  
+
   // MP 바
   drawProgressBar(ctx, barX + barW * 0.6, barY, barW * 0.4, 16, 40, 100, 'normal', { label: 'MP' })
   ctx.restore()
@@ -484,7 +475,6 @@ export function drawSyncScenario(
   state: HUDState
 ) {
   const { time, mouse, player } = state
-  const theme = THEMES.sync
   const colors = SCENARIO_COLORS.sync
 
   // ═══════════════════════════════════════════════════════════════
@@ -526,7 +516,7 @@ export function drawSyncScenario(
     const angle = (i / 6) * Math.PI * 2 + time * 0.5
     const nx = centerX + Math.cos(angle) * ringRadius
     const ny = centerY + Math.sin(angle) * ringRadius
-    
+
     ctx.fillStyle = colors.frameLight
     ctx.beginPath()
     ctx.arc(nx, ny, 6, 0, Math.PI * 2)
@@ -543,7 +533,7 @@ export function drawSyncScenario(
   ctx.shadowColor = colors.glowColor
   ctx.shadowBlur = 15
   ctx.fillText('SYNCHRONIZING...', centerX, centerY - 30)
-  
+
   ctx.font = `bold 32px ${FONTS.display}`
   ctx.fillText(`${player.syncRate.toFixed(0)}%`, centerX, centerY + 15)
   ctx.restore()
@@ -552,16 +542,16 @@ export function drawSyncScenario(
   // Win98 스타일 창: Bio Panel (좌상단)
   // ═══════════════════════════════════════════════════════════════
   drawPanel(ctx, 20, 80, 240, 140, 'BIOLOGICAL ANALYSIS', 'sync', time)
-  
+
   ctx.save()
   ctx.font = `14px ${FONTS.mono}`
   ctx.fillStyle = colors.textPrimary
   ctx.fillText(`PERSONA: ${CHARACTERS.player.englishName}`, 35, 115)
   ctx.fillText(`TYPE: ${CHARACTERS.player.type}`, 35, 135)
-  
+
   // 동기화 바
   drawProgressBar(ctx, 35, 150, 200, 14, player.syncRate, 100, 'sync', { label: 'SYNC' })
-  
+
   // 심박 그래프
   ctx.strokeStyle = colors.frameMain
   ctx.lineWidth = 1.5
@@ -575,7 +565,7 @@ export function drawSyncScenario(
     else if (beat > 0.45 && beat < 0.5) gy += 20
     else if (beat > 0.5 && beat < 0.55) gy -= 10
     else gy += Math.sin(phase * 0.5) * 2
-    
+
     if (i === 0) ctx.moveTo(gx, gy)
     else ctx.lineTo(gx, gy)
   }
@@ -615,7 +605,6 @@ export function drawCombatScenario(
   extState?: ExtendedHUDState
 ) {
   const { time, mouse, player, target, isLocked, effects, isFiring } = state
-  const theme = THEMES.combat
   const colors = SCENARIO_COLORS.combat
   const currentTime = Date.now()
 
@@ -660,12 +649,12 @@ export function drawCombatScenario(
   // Win98 스타일 창: 플레이어 HP (좌하단)
   // ═══════════════════════════════════════════════════════════════
   drawPanel(ctx, 20, h - 140, 280, 110, 'VITAL SIGNS', 'combat', time)
-  
+
   const healthRatio = player.health / player.maxHealth
   const isDanger = healthRatio < 0.3
-  drawProgressBar(ctx, 35, h - 105, 250, 20, player.health, player.maxHealth, 'combat', { 
-    label: 'HP', 
-    danger: isDanger 
+  drawProgressBar(ctx, 35, h - 105, 250, 20, player.health, player.maxHealth, 'combat', {
+    label: 'HP',
+    danger: isDanger
   })
 
   ctx.save()
@@ -681,17 +670,17 @@ export function drawCombatScenario(
   // ═══════════════════════════════════════════════════════════════
   if (target) {
     drawPanel(ctx, w - 200, 150, 180, 120, 'TARGET ANALYSIS', 'combat', time)
-    
+
     ctx.save()
     ctx.font = `bold 14px ${FONTS.mono}`
     ctx.fillStyle = colors.frameMain
     ctx.fillText(target.name.toUpperCase(), w - 185, 185)
-    
+
     ctx.font = `12px ${FONTS.mono}`
     ctx.fillStyle = colors.textSecondary
     ctx.fillText(`LEVEL: ${CHARACTERS.targets.reptilian.level}`, w - 185, 205)
     ctx.fillText(`DIST: ${target.distance.toFixed(1)}m`, w - 185, 225)
-    
+
     drawProgressBar(ctx, w - 185, 235, 150, 14, target.health, target.maxHealth, 'combat', { label: 'HP' })
     ctx.restore()
   }
@@ -699,8 +688,8 @@ export function drawCombatScenario(
   // ═══════════════════════════════════════════════════════════════
   // 락온 타겟팅 (발사 상태 반영)
   // ═══════════════════════════════════════════════════════════════
-  drawTargetingReticle(ctx, mouse.x, mouse.y, 'combat', time, { 
-    locked: isLocked, 
+  drawTargetingReticle(ctx, mouse.x, mouse.y, 'combat', time, {
+    locked: isLocked,
     size: 25,
     firing: isFiring
   })
@@ -743,7 +732,6 @@ export function drawInfectedScenario(
   state: HUDState
 ) {
   const { time, mouse, player, effects } = state
-  const theme = THEMES.infected
   const colors = SCENARIO_COLORS.infected
   const glitchIntensity = 0.3 + effects.glitchIntensity
 
@@ -751,7 +739,7 @@ export function drawInfectedScenario(
   // 글리치 배경
   // ═══════════════════════════════════════════════════════════════
   drawGridLines(ctx, w, h, 'infected', time, 0.2)
-  
+
   // 랜덤 글리치 바
   if (Math.random() > 0.95) {
     const numBars = Math.floor(Math.random() * 3) + 1
@@ -795,14 +783,14 @@ export function drawInfectedScenario(
   // Win98 스타일 창: 감염 패널 (글리치 효과)
   // ═══════════════════════════════════════════════════════════════
   drawPanel(ctx, 20, 100, 200, 130, glitchText('VIRAL LOAD', glitchIntensity * 0.5), 'infected', time)
-  
+
   ctx.save()
   ctx.font = `12px ${FONTS.mono}`
   ctx.fillStyle = colors.textSecondary
   ctx.fillText(glitchText('STATUS: UND█AD', glitchIntensity), 35, 135)
-  
+
   drawProgressBar(ctx, 35, 150, 170, 14, player.infectionLevel, 100, 'infected', { label: 'VIRAL' })
-  
+
   ctx.fillText(glitchText('DECAY RATE:', glitchIntensity), 35, 190)
   drawProgressBar(ctx, 35, 200, 170, 14, 40, 100, 'infected')
   ctx.restore()
@@ -812,7 +800,7 @@ export function drawInfectedScenario(
   // ═══════════════════════════════════════════════════════════════
   const distortX = mouse.x + Math.sin(time * 10) * 5 * glitchIntensity
   const distortY = mouse.y + Math.cos(time * 12) * 5 * glitchIntensity
-  
+
   ctx.save()
   ctx.strokeStyle = colors.frameMain
   ctx.lineWidth = 2
@@ -860,7 +848,6 @@ export function drawTraumaScenario(
   state: HUDState
 ) {
   const { time, mouse } = state
-  const theme = THEMES.trauma
   const colors = SCENARIO_COLORS.trauma
 
   // ═══════════════════════════════════════════════════════════════
@@ -891,18 +878,18 @@ export function drawTraumaScenario(
 
   // ECG/주식 차트 그리기
   const phase = (time % 6) / 6 // 6초 주기
-  
+
   ctx.save()
   ctx.strokeStyle = phase < 0.5 ? colors.ecgColor : colors.chartRed
   ctx.lineWidth = 2
   ctx.shadowColor = ctx.strokeStyle as string
   ctx.shadowBlur = 5
-  
+
   ctx.beginPath()
   for (let i = 0; i < chartW; i++) {
     const t = i / chartW
     let y = chartY + chartH / 2
-    
+
     if (phase < 0.5) {
       // ECG 패턴
       const beatPhase = ((t * 4 + time * 2) % 1)
@@ -914,12 +901,12 @@ export function drawTraumaScenario(
       // 주식 차트 (하락)
       y = chartY + 10 + t * (chartH - 20) + Math.sin(t * 20 + time) * 10
     }
-    
+
     if (i === 0) ctx.moveTo(chartX + i, y)
     else ctx.lineTo(chartX + i, y)
   }
   ctx.stroke()
-  
+
   // 하락 표시
   if (phase > 0.5) {
     ctx.font = `bold 16px ${FONTS.mono}`
@@ -943,7 +930,7 @@ export function drawTraumaScenario(
   ctx.textAlign = 'center'
   ctx.fillText('HP: ∞ / ∞', bossX, bossY + 10)
   ctx.fillText('[IMMORTAL]', bossX, bossY + 30)
-  
+
   ctx.font = `12px ${FONTS.korean}`
   ctx.fillStyle = colors.textMuted
   ctx.fillText('"포기하세요. 희망은 없습니다."', bossX, bossY + 55)
@@ -993,7 +980,6 @@ export function drawEvolvedScenario(
   state: HUDState
 ) {
   const { time, mouse, player } = state
-  const theme = THEMES.evolved
   const colors = SCENARIO_COLORS.evolved
 
   // ═══════════════════════════════════════════════════════════════
@@ -1043,7 +1029,7 @@ export function drawEvolvedScenario(
   ctx.shadowColor = colors.glowColor
   ctx.shadowBlur = 15
   ctx.fillText('★ MEMORY SYNC: 100% ★', w / 2, frameY + 50)
-  
+
   ctx.font = `16px ${FONTS.korean}`
   ctx.fillStyle = colors.textSecondary
   ctx.fillText('"무엇이든 가능하다"', w / 2, frameY + 85)
@@ -1095,7 +1081,7 @@ export function drawEvolvedScenario(
     const angle = (i / 4) * Math.PI * 2 + Math.PI / 4
     const nx = cannonX + Math.cos(angle) * cannonSize
     const ny = cannonY + Math.sin(angle) * cannonSize
-    
+
     ctx.fillStyle = colors.particleColor
     ctx.beginPath()
     ctx.arc(nx, ny, 5, 0, Math.PI * 2)
@@ -1170,7 +1156,7 @@ export function drawCommonHUD(
   w: number, h: number,
   state: HUDState
 ) {
-  const { scenario, time } = state
+  const { scenario, time: _time } = state
   const theme = THEMES[scenario]
   const scenarioInfo = SCENARIOS[scenario]
 
@@ -1182,7 +1168,7 @@ export function drawCommonHUD(
   ctx.shadowColor = theme.main(4)
   ctx.shadowBlur = 12
   ctx.fillText(`[ DREAM PERSONA :: ${scenarioInfo.name} ]`, w / 2, 35)
-  
+
   ctx.font = `10px ${FONTS.mono}`
   ctx.fillStyle = theme.text(2)
   ctx.shadowBlur = 0
