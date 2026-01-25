@@ -1,12 +1,17 @@
 import * as React from 'react'
 import { useRef, useCallback, useEffect, useState, useImperativeHandle } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Circle, Square, Play, Crosshair, Pause, RotateCcw, Download, Film, Loader2, Images } from 'lucide-react'
+import { Circle, Square, Play, Crosshair, Pause, RotateCcw, Download, Film, Loader2, Images, Clapperboard, X } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { InputRecorder } from '@/core/InputRecorder'
 import { RenderingPipeline } from '@/core/RenderingPipeline'
 import { exportToMP4, downloadBlob } from '@/core/Exporter'
 import { exportHUDToPNGSequence } from '@/core/HUDOnlyExporter'
+import { 
+  checkRenderServer, 
+  renderAndDownload, 
+  type RenderFormat as RemotionFormat 
+} from '@/core/RemotionRenderClient'
 import { cn } from '@/lib/utils'
 import type { HUDState } from '@/types/hud-protocol'
 
@@ -42,6 +47,7 @@ export const ControlPanel = React.forwardRef<ControlPanelHandle, ControlPanelPro
       setIsPlaying,
       startRecording,
       stopRecording,
+      videoFile,
     } = useAppStore()
 
     const recorderRef = useRef<InputRecorder | null>(null)
@@ -49,6 +55,15 @@ export const ControlPanel = React.forwardRef<ControlPanelHandle, ControlPanelPro
     const [countdown, setCountdown] = useState<number | null>(null)
     const [countdownMode, setCountdownMode] = useState<CountdownMode>(null)
     const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
+    
+    // Remotion 렌더링 상태 (포맷별 분리)
+    const [pngProgress, setPngProgress] = useState(0)
+    const [mp4Progress, setMp4Progress] = useState(0)
+    const [isPngRendering, setIsPngRendering] = useState(false)
+    const [isMp4Rendering, setIsMp4Rendering] = useState(false)
+    const [renderServerAvailable, setRenderServerAvailable] = useState<boolean | null>(null)
+    const [currentRenderJobId, setCurrentRenderJobId] = useState<string | null>(null)
+    const abortControllerRef = useRef<AbortController | null>(null)
 
     // 녹화 시간 업데이트
     useEffect(() => {
@@ -90,6 +105,19 @@ export const ControlPanel = React.forwardRef<ControlPanelHandle, ControlPanelPro
         }
       }
     }, [])
+    
+    // 렌더 서버 상태 체크
+    useEffect(() => {
+      const checkServer = async () => {
+        const available = await checkRenderServer()
+        setRenderServerAvailable(available)
+      }
+      checkServer()
+      
+      // 30초마다 체크
+      const interval = setInterval(checkServer, 30000)
+      return () => clearInterval(interval)
+    }, [])
 
     // 카운트다운 취소
     const cancelCountdown = useCallback(() => {
@@ -115,7 +143,14 @@ export const ControlPanel = React.forwardRef<ControlPanelHandle, ControlPanelPro
     const stopCurrentRecording = useCallback(() => {
       if (recorderRef.current) {
         const result = recorderRef.current.stop()
-        stopRecording(result.inputLog, result.hudStateLog, result.duration)
+        // 🎬 animationEvents + hudEvents (Event Sourcing) 함께 저장
+        stopRecording(
+          result.inputLog, 
+          result.hudStateLog, 
+          result.duration, 
+          result.animationEvents,
+          result.hudEvents
+        )
         recorderRef.current = null
       }
     }, [stopRecording])
@@ -281,6 +316,95 @@ export const ControlPanel = React.forwardRef<ControlPanelHandle, ControlPanelPro
       }
     }, [])
 
+    // Remotion 렌더링 핸들러 (포맷별 상태 분리)
+    const handleRemotionRender = useCallback(async (format: RemotionFormat = 'mp4') => {
+      const { recordingSession, videoFile, getRemotionSettings } = useAppStore.getState()
+      
+      if (!recordingSession) {
+        alert('녹화된 세션이 필요합니다')
+        return
+      }
+      
+      // MP4는 비디오 파일 필요
+      if (format === 'mp4' && !videoFile) {
+        alert('MP4 렌더링에는 비디오 파일이 필요합니다')
+        return
+      }
+      
+      // 서버 상태 재확인
+      const serverOk = await checkRenderServer()
+      if (!serverOk) {
+        alert(
+          '⚠️ Remotion 렌더 서버가 실행 중이 아닙니다!\n\n' +
+          '터미널에서 다음 명령어를 실행하세요:\n' +
+          'npm run dev:all\n\n' +
+          '또는 별도 터미널에서:\n' +
+          'npm run server:render'
+        )
+        return
+      }
+      
+      // 🎬 렌더링 설정 가져오기
+      const renderSettings = getRemotionSettings()
+      
+      // 포맷별 상태 설정
+      if (format === 'png') {
+        setIsPngRendering(true)
+        setPngProgress(0)
+      } else {
+        setIsMp4Rendering(true)
+        setMp4Progress(0)
+      }
+      
+      // 취소용 AbortController 생성
+      abortControllerRef.current = new AbortController()
+      
+      try {
+        await renderAndDownload(
+          {
+            format,
+            session: recordingSession,
+            videoFile: videoFile || undefined,
+            hudPresetId: 'hexa-tactical',
+            scenario: 'idle',
+            scale: 1,  // 🎬 scale은 이제 renderSettings에서 관리
+            renderSettings,  // 🎬 렌더링 설정 전달
+          },
+          (progress, _status) => {
+            if (format === 'png') {
+              setPngProgress(progress)
+            } else {
+              setMp4Progress(progress)
+            }
+          }
+        )
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          console.error('Remotion render failed:', error)
+          alert('Remotion 렌더링 실패: ' + error.message)
+        }
+      } finally {
+        if (format === 'png') {
+          setIsPngRendering(false)
+        } else {
+          setIsMp4Rendering(false)
+        }
+        abortControllerRef.current = null
+      }
+    }, [])
+    
+    // 렌더 취소 핸들러
+    const handleCancelRender = useCallback(() => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      setIsPngRendering(false)
+      setIsMp4Rendering(false)
+      setPngProgress(0)
+      setMp4Progress(0)
+      alert('렌더링이 취소되었습니다')
+    }, [])
+    
     const handleRender = useCallback(async () => {
       const { 
         recordingSession, 
@@ -508,75 +632,87 @@ export const ControlPanel = React.forwardRef<ControlPanelHandle, ControlPanelPro
 
         {/* 구분선 */}
         <div className="w-px h-8 bg-white/10" />
-
-        {/* Render 버튼 */}
+        
+        {/* Remotion PNG 시퀀스 버튼 */}
         <motion.button
-          onClick={handleRender}
-          disabled={!recordingSession || isRendering}
+          onClick={() => isPngRendering ? handleCancelRender() : handleRemotionRender('png')}
+          disabled={!recordingSession || isRendering || isMp4Rendering}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           className={cn(
-            'flex items-center gap-2 px-4 py-2.5',
+            'relative flex items-center gap-2 px-4 py-2.5',
             'rounded-lg font-medium text-sm',
-            'bg-purple-500/20 border border-purple-500/30',
-            'text-purple-300',
+            isPngRendering 
+              ? 'bg-gradient-to-r from-red-500/30 to-orange-500/30 border border-red-500/40 text-red-300'
+              : 'bg-gradient-to-r from-emerald-500/30 to-teal-500/30 border border-emerald-500/40 text-emerald-300 hover:from-emerald-500/40 hover:to-teal-500/40',
             'transition-all duration-200',
-            (!recordingSession || isRendering) && 'opacity-50 cursor-not-allowed'
+            (!recordingSession || isRendering || isMp4Rendering) && 'opacity-50 cursor-not-allowed'
           )}
+          title={isPngRendering ? "클릭하여 취소" : "Remotion 고품질 PNG 시퀀스 (투명 배경)"}
         >
-          {isRendering ? (
+          {/* 서버 상태 인디케이터 */}
+          <span 
+            className={cn(
+              'absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-zinc-800',
+              renderServerAvailable === true && 'bg-green-500',
+              renderServerAvailable === false && 'bg-red-500',
+              renderServerAvailable === null && 'bg-yellow-500 animate-pulse'
+            )}
+          />
+          
+          {isPngRendering ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>{renderProgress.toFixed(0)}%</span>
+              <X className="w-4 h-4" />
+              <span>{pngProgress.toFixed(0)}%</span>
             </>
           ) : (
             <>
-              <Film className="w-4 h-4" />
-              <span>Render</span>
+              <Images className="w-4 h-4" />
+              <span>PNG</span>
             </>
           )}
         </motion.button>
-
-        {/* Export MP4 버튼 */}
+        
+        {/* Remotion MP4 버튼 (비디오 + HUD 합성) */}
         <motion.button
-          onClick={handleExportMP4}
-          disabled={!window.__encodedChunks || isRendering}
+          onClick={() => isMp4Rendering ? handleCancelRender() : handleRemotionRender('mp4')}
+          disabled={!recordingSession || isRendering || isPngRendering || !videoFile}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           className={cn(
-            'flex items-center gap-2 px-4 py-2.5',
+            'relative flex items-center gap-2 px-4 py-2.5',
             'rounded-lg font-medium text-sm',
-            'bg-cyan-500/20 border border-cyan-500/30',
-            'text-cyan-300 hover:bg-cyan-500/30',
+            isMp4Rendering
+              ? 'bg-gradient-to-r from-red-500/30 to-orange-500/30 border border-red-500/40 text-red-300'
+              : 'bg-gradient-to-r from-orange-500/30 to-pink-500/30 border border-orange-500/40 text-orange-300 hover:from-orange-500/40 hover:to-pink-500/40',
             'transition-all duration-200',
-            (!window.__encodedChunks || isRendering) && 'opacity-50 cursor-not-allowed'
+            (!recordingSession || isRendering || isPngRendering || !videoFile) && 'opacity-50 cursor-not-allowed'
           )}
-          title="비디오 + HUD 합성 MP4"
+          title={isMp4Rendering ? "클릭하여 취소" : (videoFile ? "Remotion 고품질 MP4 (비디오 + HUD 합성)" : "비디오 파일이 필요합니다")}
         >
-          <Download className="w-4 h-4" />
-          <span>MP4</span>
-        </motion.button>
-
-        {/* Export PNG Sequence 버튼 (HUD만 투명 배경) */}
-        <motion.button
-          onClick={handleExportPNGSequence}
-          disabled={!recordingSession || isRendering}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className={cn(
-            'flex items-center gap-2 px-4 py-2.5',
-            'rounded-lg font-medium text-sm',
-            'bg-emerald-500/20 border border-emerald-500/30',
-            'text-emerald-300 hover:bg-emerald-500/30',
-            'transition-all duration-200',
-            (!recordingSession || isRendering) && 'opacity-50 cursor-not-allowed'
+          {/* 서버 상태 인디케이터 */}
+          <span 
+            className={cn(
+              'absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-zinc-800',
+              renderServerAvailable === true && 'bg-green-500',
+              renderServerAvailable === false && 'bg-red-500',
+              renderServerAvailable === null && 'bg-yellow-500 animate-pulse'
+            )}
+          />
+          
+          {isMp4Rendering ? (
+            <>
+              <X className="w-4 h-4" />
+              <span>{mp4Progress.toFixed(0)}%</span>
+            </>
+          ) : (
+            <>
+              <Clapperboard className="w-4 h-4" />
+              <span>MP4</span>
+            </>
           )}
-          title="HUD만 투명 PNG 시퀀스 (ZIP)"
-        >
-          <Images className="w-4 h-4" />
-          <span>PNG</span>
         </motion.button>
-
+        
         {/* Export JSON 버튼 (디버깅용, 작은 버튼) */}
         <motion.button
           onClick={handleExportJSON}
@@ -641,8 +777,25 @@ export const ControlPanel = React.forwardRef<ControlPanelHandle, ControlPanelPro
             )}
           </AnimatePresence>
 
+          {/* Remotion 렌더링 상태 */}
+          <AnimatePresence>
+            {(isPngRendering || isMp4Rendering) && (
+              <motion.div
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-lg"
+              >
+                <Loader2 className="w-3.5 h-3.5 text-orange-400 animate-spin" />
+                <span className="text-sm text-orange-300">
+                  {isPngRendering ? `PNG ${pngProgress.toFixed(0)}%` : `MP4 ${mp4Progress.toFixed(0)}%`}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* 녹화 완료 상태 */}
-          {recordingSession && !isRecording && !isRendering && !isCountingDown && (
+          {recordingSession && !isRecording && !isRendering && !isPngRendering && !isMp4Rendering && !isCountingDown && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

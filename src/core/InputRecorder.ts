@@ -5,6 +5,8 @@ import type {
   KeyboardEventData,
   HUDStateSnapshot,
 } from '@/types/input-log'
+import { animationEventLog, type AnimationEvent } from '@/theatre/animations'
+import { eventSourceLog, type HUDEvent } from './EventSourceLog'
 
 export class InputRecorder {
   private isRecording = false
@@ -52,6 +54,12 @@ export class InputRecorder {
     this.hudStateLog = []
     this.lastMouseMoveTime = 0
 
+    // 🎬 애니메이션 이벤트 녹화 시작
+    animationEventLog.startRecording()
+    
+    // 🎬 Event Sourcing 녹화 시작
+    eventSourceLog.start()
+
     // 이벤트 리스너 등록
     targetElement.addEventListener('mousemove', this.boundHandlers.mousemove)
     targetElement.addEventListener('mousedown', this.boundHandlers.mousedown)
@@ -64,9 +72,15 @@ export class InputRecorder {
     console.log('Input recording started')
   }
 
-  stop(): { inputLog: InputEvent[]; hudStateLog: HUDStateSnapshot[]; duration: number } {
+  stop(): { 
+    inputLog: InputEvent[]
+    hudStateLog: HUDStateSnapshot[]
+    animationEvents: AnimationEvent[]
+    hudEvents: HUDEvent[]
+    duration: number 
+  } {
     if (!this.isRecording || !this.targetElement) {
-      return { inputLog: [], hudStateLog: [], duration: 0 }
+      return { inputLog: [], hudStateLog: [], animationEvents: [], hudEvents: [], duration: 0 }
     }
 
     // 이벤트 리스너 제거
@@ -78,16 +92,24 @@ export class InputRecorder {
     window.removeEventListener('keydown', this.boundHandlers.keydown)
     window.removeEventListener('keyup', this.boundHandlers.keyup)
 
+    // 🎬 애니메이션 이벤트 녹화 중지
+    const animationEvents = animationEventLog.stopRecording()
+    
+    // 🎬 Event Sourcing 녹화 중지
+    const hudEvents = eventSourceLog.stop()
+
     const duration = performance.now() - this.startTime
     this.isRecording = false
 
     console.log(
-      `Input recording stopped. Duration: ${duration.toFixed(0)}ms, Events: ${this.inputLog.length}`
+      `Input recording stopped. Duration: ${duration.toFixed(0)}ms, Events: ${this.inputLog.length}, AnimEvents: ${animationEvents.length}, HUDEvents: ${hudEvents.length}`
     )
 
     return {
       inputLog: [...this.inputLog],
       hudStateLog: [...this.hudStateLog],
+      animationEvents,
+      hudEvents,
       duration,
     }
   }

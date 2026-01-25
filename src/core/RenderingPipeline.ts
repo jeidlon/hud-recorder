@@ -5,6 +5,8 @@ import { FrameCompositor } from './FrameCompositor'
 import { WebGPUCompositor, type WebGPUCompositorConfig } from './WebGPUCompositor'
 import { checkWebGPUSupport } from './WebGPUSupport'
 import { OfflineHUDRenderer } from './OfflineHUDRenderer'
+import { LiveCaptureRenderer } from './LiveCaptureRenderer'
+import { isReactBasedPreset } from './ReactHUDRenderer'
 import { InputInterpolator } from './InputInterpolator'
 import type { RecordingSession } from '@/types/input-log'
 
@@ -104,11 +106,29 @@ export class RenderingPipeline {
       : 'target-lock'
     console.log(`Using HUD preset: ${presetId}`)
     
-    const hudRenderer = new OfflineHUDRenderer({ width, height, presetId })
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // React 기반 프리셋은 LiveCaptureRenderer로 실제 미리보기 화면 캡처
+    // (새로 컴포넌트 마운트하지 않고, 화면에 렌더링된 것을 그대로 캡처)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const useLiveCapture = isReactBasedPreset(presetId)
+    console.log(`[Pipeline] Using ${useLiveCapture ? 'LiveCapture - 미리보기와 100% 동일' : 'Canvas 2D'} HUD renderer`)
+    
+    // HUD 렌더러 초기화
+    let liveCaptureRenderer: LiveCaptureRenderer | null = null
+    let canvasHudRenderer: OfflineHUDRenderer | null = null
+    
+    if (useLiveCapture) {
+      liveCaptureRenderer = new LiveCaptureRenderer({ width, height })
+      await liveCaptureRenderer.initialize()
+      liveCaptureRenderer.startCapture()
+      console.log('[Pipeline] ✅ LiveCaptureRenderer initialized - 실제 화면 캡처 방식')
+    } else {
+      canvasHudRenderer = new OfflineHUDRenderer({ width, height, presetId })
+    }
 
     // 3. 인코더 초기화
     const encoder = new VideoEncoderWrapper(
-      { width, height, framerate: fps, bitrate: 20_000_000 }, // 20Mbps로 낮춤
+      { width, height, framerate: fps, bitrate: 20_000_000 }, // 20Mbps
       {
         onChunk: (chunk, meta) => {
           this.encodedChunks.push(chunk)
@@ -125,68 +145,198 @@ export class RenderingPipeline {
 
     console.log(`Total frames to render: ${totalFrames}`)
 
-    // 5. 스트리밍 디코딩 + 합성 + 인코딩
-    let frameIndex = 0
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // LiveCapture 렌더러 사용 시: 실제 화면에서 HUD 캡처
+    // 비디오 프레임을 버퍼에 저장하고, HUD는 화면에서 캡처
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if (useLiveCapture && liveCaptureRenderer) {
+      // 비디오 프레임을 버퍼에 저장
+      const videoFrameBuffer: { frame: VideoFrame; index: number }[] = []
+      let decodingComplete = false
+      let bufferResolve: (() => void) | null = null
+      
+      // 디코딩 시작
+      const decodingPromise = new Promise<void>((resolve, reject) => {
+        const decoder = new VideoDecoderWrapper({
+          onFrame: (frame) => {
+            videoFrameBuffer.push({ frame, index: videoFrameBuffer.length })
+            bufferResolve?.()
+          },
+          onError: reject,
+        })
 
-    await new Promise<void>((resolve, reject) => {
-      const decoder = new VideoDecoderWrapper({
-        onFrame: async (frame) => {
-          try {
-            // 현재 프레임 인덱스가 범위 내인지 확인
-            if (frameIndex >= totalFrames) {
-              frame.close()
-              return
+        const demuxer = new MP4Demuxer({
+          onConfig: (config) => decoder.configure(config),
+          onChunk: (chunk) => decoder.decode(chunk),
+          onComplete: async () => {
+            try {
+              await decoder.flush()
+              decodingComplete = true
+              bufferResolve?.()
+              resolve()
+            } catch (err) {
+              reject(err)
             }
+          },
+          onError: reject,
+        })
 
-            const state = frameStates[frameIndex]
-            const timestamp = (frameIndex / fps) * 1_000_000 // microseconds
+        demuxer.loadFile(this.videoFile)
+      })
 
-            // HUD 렌더링
-            const hudCanvas = hudRenderer.render(state)
+      // 프레임 순차 처리 루프
+      let frameIndex = 0
+      let lastVideoFrame: VideoFrame | null = null // 마지막 비디오 프레임 보관
+      
+      while (frameIndex < totalFrames) {
+        // 버퍼에 처리할 프레임이 없으면 대기
+        while (videoFrameBuffer.length === 0 && !decodingComplete) {
+          await new Promise<void>((r) => { bufferResolve = r })
+        }
+        
+        // 버퍼가 비어있고 디코딩도 완료됐으면 마지막 프레임 재사용
+        let frame: VideoFrame
+        if (videoFrameBuffer.length === 0 && decodingComplete) {
+          if (lastVideoFrame) {
+            // 마지막 비디오 프레임 복제하여 사용 (freeze frame)
+            frame = lastVideoFrame.clone()
+            console.log(`[Pipeline] Frame ${frameIndex}: 비디오 프레임 소진, 마지막 프레임 재사용`)
+          } else {
+            console.warn('[Pipeline] 비디오 프레임 없음, 렌더링 종료')
+            break
+          }
+        } else {
+          const item = videoFrameBuffer.shift()!
+          frame = item.frame
+          
+          // 마지막 프레임 보관 (이전 것은 해제)
+          if (lastVideoFrame) {
+            lastVideoFrame.close()
+          }
+          lastVideoFrame = frame.clone()
+        }
+        const state = frameStates[frameIndex]
+        const timestamp = (frameIndex / fps) * 1_000_000 // microseconds
 
+        try {
+          // 실제 화면에서 HUD 캡처 (미리보기와 100% 동일!)
+          const timestampMs = (frameIndex / fps) * 1000  // 밀리초
+          const hudCanvas = await liveCaptureRenderer.captureHUDOnly(state, timestampMs)
+          
+          if (hudCanvas) {
             // 합성
             const compositeFrame = compositor.composite(frame, hudCanvas, timestamp)
-
+            
             // 인코딩
             encoder.encodeFrame(compositeFrame, frameIndex === 0)
-
-            // 즉시 메모리 해제
+            
+            // 메모리 해제
             compositeFrame.close()
-            frame.close()
+          } else {
+            // HUD 캡처 실패 시 비디오만 인코딩
+            console.warn(`[Pipeline] Frame ${frameIndex}: HUD 캡처 실패, 비디오만 인코딩`)
+            const videoOnlyFrame = new VideoFrame(frame, { timestamp })
+            encoder.encodeFrame(videoOnlyFrame, frameIndex === 0)
+            videoOnlyFrame.close()
+          }
+          
+          frame.close()
+          
+          // 진행률 업데이트
+          const progress = ((frameIndex + 1) / totalFrames) * 100
+          this.callbacks.onProgress(progress, frameIndex + 1, totalFrames)
+          liveCaptureRenderer.updateProgress(progress)
+          
+          frameIndex++
+          
+          // UI 업데이트를 위한 yield
+          if (frameIndex % 5 === 0) {
+            await new Promise((r) => setTimeout(r, 0))
+          }
+        } catch (err) {
+          frame.close()
+          throw err
+        }
+      }
+      
+      // 디코딩 완료 대기
+      await decodingPromise
+      
+      // 마지막 비디오 프레임 정리
+      if (lastVideoFrame) {
+        lastVideoFrame.close()
+      }
+      
+      // 정리
+      liveCaptureRenderer.stopCapture()
+      liveCaptureRenderer.destroy()
+      
+    } else {
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // Canvas 렌더러: 기존 스트리밍 방식 (동기 렌더링)
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      let frameIndex = 0
 
-            // 진행률 업데이트
-            const progress = ((frameIndex + 1) / totalFrames) * 100
-            this.callbacks.onProgress(progress, frameIndex + 1, totalFrames)
+      await new Promise<void>((resolve, reject) => {
+        const decoder = new VideoDecoderWrapper({
+          onFrame: async (frame) => {
+            try {
+              if (frameIndex >= totalFrames) {
+                frame.close()
+                return
+              }
 
-            frameIndex++
+              const state = frameStates[frameIndex]
+              const timestamp = (frameIndex / fps) * 1_000_000
 
-            // UI 업데이트를 위한 yield (매 30프레임마다)
-            if (frameIndex % 30 === 0) {
-              await new Promise((r) => setTimeout(r, 0))
+              // HUD 렌더링 (Canvas 2D - 동기)
+              const hudCanvas = canvasHudRenderer!.render(state)
+
+              // 합성
+              const compositeFrame = compositor.composite(frame, hudCanvas, timestamp)
+
+              // 인코딩
+              encoder.encodeFrame(compositeFrame, frameIndex === 0)
+
+              // 메모리 해제
+              compositeFrame.close()
+              frame.close()
+
+              // 진행률 업데이트
+              const progress = ((frameIndex + 1) / totalFrames) * 100
+              this.callbacks.onProgress(progress, frameIndex + 1, totalFrames)
+
+              frameIndex++
+
+              if (frameIndex % 30 === 0) {
+                await new Promise((r) => setTimeout(r, 0))
+              }
+            } catch (err) {
+              reject(err)
             }
-          } catch (err) {
-            reject(err)
-          }
-        },
-        onError: reject,
-      })
+          },
+          onError: reject,
+        })
 
-      const demuxer = new MP4Demuxer({
-        onConfig: (config) => decoder.configure(config),
-        onChunk: (chunk) => decoder.decode(chunk),
-        onComplete: async () => {
-          try {
-            await decoder.flush()
-            resolve()
-          } catch (err) {
-            reject(err)
-          }
-        },
-        onError: reject,
-      })
+        const demuxer = new MP4Demuxer({
+          onConfig: (config) => decoder.configure(config),
+          onChunk: (chunk) => decoder.decode(chunk),
+          onComplete: async () => {
+            try {
+              await decoder.flush()
+              resolve()
+            } catch (err) {
+              reject(err)
+            }
+          },
+          onError: reject,
+        })
 
-      demuxer.loadFile(this.videoFile)
-    })
+        demuxer.loadFile(this.videoFile)
+      })
+      
+      canvasHudRenderer?.destroy()
+    }
 
     // 6. 인코딩 완료 대기
     await encoder.flush()
@@ -194,10 +344,11 @@ export class RenderingPipeline {
 
     // 7. 정리
     compositor.destroy()
-    hudRenderer.destroy()
 
     const compositorType = useWebGPU ? 'WebGPU' : 'Canvas 2D'
-    console.log(`[Pipeline] ✅ Encoding complete with ${compositorType} compositor`)
+    const hudRendererType = useLiveCapture ? 'LiveCapture (미리보기 동일)' : 'Canvas 2D'
+    console.log(`[Pipeline] ✅ Encoding complete`)
+    console.log(`[Pipeline] Compositor: ${compositorType}, HUD Renderer: ${hudRendererType}`)
     console.log(`[Pipeline] Total chunks: ${this.encodedChunks.length}`)
     this.callbacks.onComplete(this.encodedChunks, this.chunkMetadata)
   }

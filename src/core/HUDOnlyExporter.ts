@@ -1,4 +1,6 @@
 import { OfflineHUDRenderer } from './OfflineHUDRenderer'
+import { LiveCaptureRenderer } from './LiveCaptureRenderer'
+import { isReactBasedPreset } from './ReactHUDRenderer'
 import { InputInterpolator } from './InputInterpolator'
 import type { RecordingSession } from '@/types/input-log'
 import JSZip from 'jszip'
@@ -11,6 +13,8 @@ export interface HUDExportCallbacks {
 
 /**
  * HUD만 투명 배경으로 PNG 시퀀스 출력
+ * React 기반 프리셋은 html-to-image로 캡처하여 미리보기와 동일한 퀄리티 보장
+ * 
  * @param session - 녹화 세션
  * @param callbacks - 콜백
  * @param scale - 해상도 스케일 (기본 2x, 고해상도 출력)
@@ -32,15 +36,15 @@ export async function exportHUDToPNGSequence(
   const presetId = hudUrl.startsWith('__inline__:') 
     ? hudUrl.replace('__inline__:', '') 
     : 'target-lock'
+  
+  const useLiveCapture = isReactBasedPreset(presetId)
   console.log(`PNG Export using HUD preset: ${presetId}, scale: ${scale}x (${width}x${height})`)
+  console.log(`Using ${useLiveCapture ? 'LiveCapture (미리보기 동일)' : 'Canvas 2D'} renderer`)
 
   // 입력 보간기 생성
   const interpolator = new InputInterpolator(inputLog, hudStateLog)
 
-  // HUD 렌더러 생성 (스케일된 해상도!)
-  const hudRenderer = new OfflineHUDRenderer({ width, height, presetId, scale })
-
-  // 프레임별 상태 계산 (좌표 스케일은 렌더러 내부에서 처리)
+  // 프레임별 상태 계산
   const frameStates = interpolator.generateFrameStates(fps, duration)
   const totalFrames = frameStates.length
 
@@ -56,56 +60,105 @@ export async function exportHUDToPNGSequence(
     return
   }
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 배치 병렬 처리 (한 번에 BATCH_SIZE 프레임씩 처리)
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  const BATCH_SIZE = 10 // 동시에 처리할 프레임 수
-  
-  for (let batchStart = 0; batchStart < totalFrames; batchStart += BATCH_SIZE) {
-    const batchEnd = Math.min(batchStart + BATCH_SIZE, totalFrames)
+  if (useLiveCapture) {
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // React 기반 HUD: LiveCaptureRenderer로 실제 화면 캡처 (미리보기와 100% 동일)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const liveCaptureRenderer = new LiveCaptureRenderer({ 
+      width: baseWidth,
+      height: baseHeight, 
+    })
     
-    // 배치 내 프레임들을 병렬로 렌더링 + PNG 변환
-    const batchPromises: Promise<{ name: string; blob: Blob }>[] = []
+    try {
+      await liveCaptureRenderer.initialize()
+      liveCaptureRenderer.startCapture()
+      
+      // 순차 처리
+      for (let i = 0; i < totalFrames; i++) {
+        const state = frameStates[i]
+        const frameName = `frame_${String(i + 1).padStart(5, '0')}.png`
+        const timestampMs = (i / fps) * 1000  // 밀리초
+        
+        // 실제 화면에서 HUD 캡처
+        const canvas = await liveCaptureRenderer.captureHUDOnly(state, timestampMs)
+        
+        if (canvas) {
+          // Canvas를 Blob으로 변환
+          const blob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob((b) => {
+              if (b) resolve(b)
+              else reject(new Error('Failed to convert canvas to blob'))
+            }, 'image/png')
+          })
+          
+          folder.file(frameName, blob)
+        }
+        
+        // 진행률 업데이트
+        const progress = ((i + 1) / totalFrames) * 100
+        callbacks.onProgress(progress, i + 1, totalFrames)
+        liveCaptureRenderer.updateProgress(progress)
+        
+        // UI 업데이트를 위한 yield
+        if (i % 10 === 0) {
+          await new Promise((r) => setTimeout(r, 0))
+        }
+      }
+      
+      liveCaptureRenderer.stopCapture()
+      liveCaptureRenderer.destroy()
+    } catch (error) {
+      liveCaptureRenderer.stopCapture()
+      liveCaptureRenderer.destroy()
+      throw error
+    }
+  } else {
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Canvas 기반 HUD: 기존 OfflineHUDRenderer 사용
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const hudRenderer = new OfflineHUDRenderer({ width, height, presetId, scale })
     
-    for (let i = batchStart; i < batchEnd; i++) {
-      const state = frameStates[i]
-      const frameName = `frame_${String(i + 1).padStart(5, '0')}.png`
+    const BATCH_SIZE = 10
+    
+    for (let batchStart = 0; batchStart < totalFrames; batchStart += BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, totalFrames)
       
-      // HUD 렌더링 (동기)
-      const hudCanvas = hudRenderer.render(state)
+      const batchPromises: Promise<{ name: string; blob: Blob }>[] = []
       
-      // PNG 변환은 Promise로 (비동기 병렬)
-      const pngPromise = hudCanvas.convertToBlob({ type: 'image/png' })
-        .then(blob => ({ name: frameName, blob }))
+      for (let i = batchStart; i < batchEnd; i++) {
+        const state = frameStates[i]
+        const frameName = `frame_${String(i + 1).padStart(5, '0')}.png`
+        
+        const hudCanvas = hudRenderer.render(state)
+        
+        const pngPromise = hudCanvas.convertToBlob({ type: 'image/png' })
+          .then(blob => ({ name: frameName, blob }))
+        
+        batchPromises.push(pngPromise)
+      }
       
-      batchPromises.push(pngPromise)
+      const batchResults = await Promise.all(batchPromises)
+      
+      for (const { name, blob } of batchResults) {
+        folder.file(name, blob)
+      }
+      
+      const progress = (batchEnd / totalFrames) * 100
+      callbacks.onProgress(progress, batchEnd, totalFrames)
+      
+      await new Promise((r) => setTimeout(r, 0))
     }
     
-    // 배치 완료 대기
-    const batchResults = await Promise.all(batchPromises)
-    
-    // ZIP에 추가
-    for (const { name, blob } of batchResults) {
-      folder.file(name, blob)
-    }
-    
-    // 진행률 업데이트
-    const progress = (batchEnd / totalFrames) * 100
-    callbacks.onProgress(progress, batchEnd, totalFrames)
-    
-    // UI 업데이트를 위한 yield
-    await new Promise((r) => setTimeout(r, 0))
+    hudRenderer.destroy()
   }
-
-  hudRenderer.destroy()
   
   const renderTime = ((performance.now() - startTime) / 1000).toFixed(1)
   console.log(`Rendering complete in ${renderTime}s. Creating ZIP...`)
 
-  // ZIP 생성 (PNG는 이미 압축되어 있으므로 STORE 모드 사용 - 더 빠름!)
+  // ZIP 생성
   const zipBlob = await zip.generateAsync({
     type: 'blob',
-    compression: 'STORE', // 무압축 - PNG는 이미 압축됨!
+    compression: 'STORE',
   })
 
   console.log(`PNG sequence exported: ${(zipBlob.size / 1024 / 1024).toFixed(2)} MB`)
@@ -114,6 +167,7 @@ export async function exportHUDToPNGSequence(
 
 /**
  * HUD만 투명 배경 WebM 비디오로 출력 (VP9 with alpha)
+ * React 기반 프리셋은 html-to-image로 캡처
  */
 export async function exportHUDToWebMAlpha(
   session: RecordingSession,
@@ -127,7 +181,10 @@ export async function exportHUDToWebMAlpha(
   const presetId = hudUrl.startsWith('__inline__:') 
     ? hudUrl.replace('__inline__:', '') 
     : 'target-lock'
+  
+  const useLiveCapture = isReactBasedPreset(presetId)
   console.log(`WebM Export using HUD preset: ${presetId}`)
+  console.log(`Using ${useLiveCapture ? 'LiveCapture (미리보기 동일)' : 'Canvas 2D'} renderer`)
 
   // VP9 알파 지원 확인
   const config: VideoEncoderConfig = {
@@ -141,7 +198,6 @@ export async function exportHUDToWebMAlpha(
 
   const support = await VideoEncoder.isConfigSupported(config)
   if (!support.supported) {
-    // 알파 없이 VP9 시도
     console.warn('VP9 with alpha not supported, trying without alpha...')
     config.alpha = 'discard'
     const fallbackSupport = await VideoEncoder.isConfigSupported(config)
@@ -153,9 +209,6 @@ export async function exportHUDToWebMAlpha(
 
   // 입력 보간기 생성
   const interpolator = new InputInterpolator(inputLog, hudStateLog)
-
-  // HUD 렌더러 생성 (프리셋 ID 전달!)
-  const hudRenderer = new OfflineHUDRenderer({ width, height, presetId })
 
   // 프레임별 상태 계산
   const frameStates = interpolator.generateFrameStates(fps, duration)
@@ -179,39 +232,87 @@ export async function exportHUDToWebMAlpha(
 
   encoder.configure(config)
 
-  // 각 프레임 인코딩
-  for (let i = 0; i < totalFrames; i++) {
-    const state = frameStates[i]
-    const timestamp = (i / fps) * 1_000_000 // microseconds
-
-    // HUD 렌더링 (투명 배경)
-    const hudCanvas = hudRenderer.render(state)
-
-    // VideoFrame 생성
-    const frame = new VideoFrame(hudCanvas, {
-      timestamp,
-      alpha: config.alpha === 'keep' ? 'keep' : 'discard',
-    })
-
-    encoder.encode(frame, { keyFrame: i % 60 === 0 })
-    frame.close()
-
-    // 진행률 업데이트
-    const progress = ((i + 1) / totalFrames) * 100
-    callbacks.onProgress(progress, i + 1, totalFrames)
-
-    // UI 업데이트를 위한 yield
-    if (i % 30 === 0) {
-      await new Promise((r) => setTimeout(r, 0))
+  if (useLiveCapture) {
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // React 기반 HUD: LiveCaptureRenderer로 실제 화면 캡처
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const liveCaptureRenderer = new LiveCaptureRenderer({ width, height })
+    
+    try {
+      await liveCaptureRenderer.initialize()
+      liveCaptureRenderer.startCapture()
+      
+      for (let i = 0; i < totalFrames; i++) {
+        const state = frameStates[i]
+        const timestamp = (i / fps) * 1_000_000  // microseconds
+        const timestampMs = (i / fps) * 1000     // milliseconds
+        
+        // 실제 화면에서 HUD 캡처
+        const canvas = await liveCaptureRenderer.captureHUDOnly(state, timestampMs)
+        
+        if (canvas) {
+          // VideoFrame 생성
+          const frame = new VideoFrame(canvas, {
+            timestamp,
+            alpha: config.alpha === 'keep' ? 'keep' : 'discard',
+          })
+          
+          encoder.encode(frame, { keyFrame: i % 60 === 0 })
+          frame.close()
+        }
+        
+        // 진행률 업데이트
+        const progress = ((i + 1) / totalFrames) * 100
+        callbacks.onProgress(progress, i + 1, totalFrames)
+        liveCaptureRenderer.updateProgress(progress)
+        
+        if (i % 10 === 0) {
+          await new Promise((r) => setTimeout(r, 0))
+        }
+      }
+      
+      liveCaptureRenderer.stopCapture()
+      liveCaptureRenderer.destroy()
+    } catch (error) {
+      liveCaptureRenderer.stopCapture()
+      liveCaptureRenderer.destroy()
+      throw error
     }
+  } else {
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Canvas 기반 HUD: 기존 OfflineHUDRenderer 사용
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const hudRenderer = new OfflineHUDRenderer({ width, height, presetId })
+    
+    for (let i = 0; i < totalFrames; i++) {
+      const state = frameStates[i]
+      const timestamp = (i / fps) * 1_000_000
+
+      const hudCanvas = hudRenderer.render(state)
+
+      const frame = new VideoFrame(hudCanvas, {
+        timestamp,
+        alpha: config.alpha === 'keep' ? 'keep' : 'discard',
+      })
+
+      encoder.encode(frame, { keyFrame: i % 60 === 0 })
+      frame.close()
+
+      const progress = ((i + 1) / totalFrames) * 100
+      callbacks.onProgress(progress, i + 1, totalFrames)
+
+      if (i % 30 === 0) {
+        await new Promise((r) => setTimeout(r, 0))
+      }
+    }
+    
+    hudRenderer.destroy()
   }
 
   await encoder.flush()
   encoder.close()
-  hudRenderer.destroy()
 
-  // WebM Muxer로 변환 (간단한 구현)
-  // 실제로는 webm-muxer 패키지 사용 권장
+  // WebM Muxer로 변환
   const blob = await createWebMBlob(chunks, metadata, width, height, fps)
 
   console.log(`WebM exported: ${(blob.size / 1024 / 1024).toFixed(2)} MB`)

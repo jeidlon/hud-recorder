@@ -69,7 +69,10 @@ export class OfflineHUDRenderer {
       case 'cyberpunk':
         return this.renderCyberpunk(state)
       case 'dream-persona':
+      case 'dream-persona-remaster':
         return this.renderDreamPersona(state)
+      case 'hexa-tactical':
+        return this.renderHexaTactical(state)
       case 'target-lock':
       default:
         return this.renderTargetLock(state)
@@ -518,6 +521,406 @@ export class OfflineHUDRenderer {
     ctx.moveTo(width - 50, height)
     ctx.lineTo(width, height)
     ctx.lineTo(width, height - 50)
+    ctx.stroke()
+
+    ctx.globalAlpha = 1
+
+    this.frameIndex++
+    return this.canvas
+  }
+
+  /**
+   * Hexa-Tactical OS 98 HUD 렌더링
+   * Win98 홀로그램 크롬 스타일의 퓨처리즘 + 레트로 UI
+   */
+  private renderHexaTactical(state: FrameState): OffscreenCanvas {
+    const width = this.config.width / this.scale
+    const height = this.config.height / this.scale
+    const ctx = this.ctx
+    const frame = this.frameIndex
+    const time = frame / 60
+
+    ctx.clearRect(0, 0, width, height)
+
+    const { mouse, customData } = state
+
+    // 색상 팔레트 - Win98 홀로그램 크롬
+    const COLORS = {
+      gold: '#FFD700',
+      goldDim: 'rgba(255, 215, 0, 0.6)',
+      goldGlow: 'rgba(255, 215, 0, 0.3)',
+      borderOuter: 'rgba(255, 248, 225, 0.5)',
+      borderInner: 'rgba(255, 215, 0, 0.35)',
+      bgPanel: 'rgba(20, 18, 14, 0.85)',
+      textMain: '#FFF8E1',
+      textDim: 'rgba(255, 248, 225, 0.7)',
+      cyan: '#40C4FF',
+      red: '#FF4444',
+    }
+
+    // 시나리오 확인
+    const scenario = (customData as { scenario?: string })?.scenario || 'idle'
+    const isDanger = scenario === 'monster_combat' || scenario === 'infected'
+
+    // 테마 색상
+    const themeColor = isDanger ? COLORS.red : COLORS.gold
+    const themeDim = isDanger ? 'rgba(255, 68, 68, 0.6)' : COLORS.goldDim
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 글로벌 효과: 스캔라인
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ctx.save()
+    ctx.globalAlpha = 0.03
+    for (let y = 0; y < height; y += 3) {
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, y, width, 1)
+    }
+    ctx.restore()
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 헬퍼 함수: WindowShell 스타일 패널 그리기
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const drawPanel = (x: number, y: number, w: number, h: number, title: string, borderColor: string = themeColor) => {
+      const titleBarHeight = 14
+
+      // 배경
+      ctx.fillStyle = COLORS.bgPanel
+      ctx.fillRect(x, y, w, h)
+
+      // 외곽 테두리
+      ctx.strokeStyle = COLORS.borderOuter
+      ctx.lineWidth = 1
+      ctx.strokeRect(x, y, w, h)
+
+      // 타이틀바 배경
+      const titleGrad = ctx.createLinearGradient(x, y, x + w, y)
+      titleGrad.addColorStop(0, `${borderColor}40`)
+      titleGrad.addColorStop(1, `${borderColor}10`)
+      ctx.fillStyle = titleGrad
+      ctx.fillRect(x + 1, y + 1, w - 2, titleBarHeight)
+
+      // 타이틀바 하단 선
+      ctx.strokeStyle = `${borderColor}50`
+      ctx.beginPath()
+      ctx.moveTo(x, y + titleBarHeight)
+      ctx.lineTo(x + w, y + titleBarHeight)
+      ctx.stroke()
+
+      // 타이틀 텍스트
+      ctx.font = 'bold 8px "Outfit", "Orbitron", sans-serif'
+      ctx.fillStyle = COLORS.textMain
+      ctx.textAlign = 'left'
+      ctx.fillText(title.toUpperCase(), x + 6, y + 10)
+
+      // 윈도우 컨트롤 버튼 (최소화, 최대화, 닫기)
+      const btnSize = 6
+      const btnY = y + 4
+      const btnSpacing = 9
+      const startX = x + w - 28
+
+      // 최소화
+      ctx.strokeStyle = themeDim
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(startX, btnY + btnSize / 2)
+      ctx.lineTo(startX + btnSize, btnY + btnSize / 2)
+      ctx.stroke()
+
+      // 최대화
+      ctx.strokeRect(startX + btnSpacing, btnY, btnSize, btnSize)
+
+      // 닫기 (X)
+      ctx.beginPath()
+      ctx.moveTo(startX + btnSpacing * 2, btnY)
+      ctx.lineTo(startX + btnSpacing * 2 + btnSize, btnY + btnSize)
+      ctx.moveTo(startX + btnSpacing * 2 + btnSize, btnY)
+      ctx.lineTo(startX + btnSpacing * 2, btnY + btnSize)
+      ctx.stroke()
+
+      return { contentY: y + titleBarHeight + 4, contentH: h - titleBarHeight - 8 }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 헬퍼 함수: 세그먼트 바 그리기
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const drawSegmentedBar = (x: number, y: number, w: number, h: number, fillPercent: number, color: string) => {
+      const segments = 18
+      const gap = 1
+      const segWidth = (w - (segments - 1) * gap) / segments
+      const filledCount = Math.round((fillPercent / 100) * segments)
+
+      for (let i = 0; i < segments; i++) {
+        const segX = x + i * (segWidth + gap)
+        const isFilled = i < filledCount
+
+        if (isFilled) {
+          // 채워진 세그먼트 (위가 밝고 아래가 어두운 그라데이션)
+          const segGrad = ctx.createLinearGradient(segX, y, segX, y + h)
+          segGrad.addColorStop(0, color)
+          segGrad.addColorStop(1, `${color}88`)
+          ctx.fillStyle = segGrad
+        } else {
+          ctx.fillStyle = 'rgba(255,255,255,0.08)'
+        }
+        ctx.fillRect(segX, y, segWidth, h)
+      }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 좌측 상단: Player Status (HP/MP)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const statusX = 15
+    const statusY = 15
+    const statusW = 140
+    const statusH = 95
+
+    // 프로필 영역
+    const profileSize = 50
+    const { contentY: statusContentY } = drawPanel(statusX, statusY, statusW, statusH, 'STATUS', themeColor)
+
+    // 프로필 육각형 배경
+    ctx.save()
+    ctx.beginPath()
+    const cx = statusX + 8 + profileSize / 2
+    const cy = statusContentY + 3 + profileSize / 2
+    const r = profileSize / 2 - 2
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI / 3) * i - Math.PI / 2
+      const px = cx + r * Math.cos(angle)
+      const py = cy + r * Math.sin(angle)
+      if (i === 0) ctx.moveTo(px, py)
+      else ctx.lineTo(px, py)
+    }
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(50, 45, 35, 0.8)'
+    ctx.fill()
+    ctx.strokeStyle = COLORS.borderOuter
+    ctx.lineWidth = 1
+    ctx.stroke()
+    ctx.restore()
+
+    // 프로필 아이콘 (간단한 사람 아이콘)
+    ctx.fillStyle = COLORS.textDim
+    ctx.beginPath()
+    ctx.arc(cx, cy - 8, 10, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.ellipse(cx, cy + 12, 14, 12, 0, Math.PI, 0)
+    ctx.fill()
+
+    // HP 바
+    const barX = statusX + 65
+    const barW = 65
+    const barH = 12
+    const hpY = statusContentY + 8
+
+    ctx.font = 'bold 8px "Outfit", sans-serif'
+    ctx.fillStyle = COLORS.gold
+    ctx.textAlign = 'left'
+    ctx.fillText('HP:', barX, hpY + 9)
+    drawSegmentedBar(barX + 18, hpY, barW, barH, 100, COLORS.gold)
+
+    // MP 바
+    const mpY = hpY + 20
+    ctx.fillStyle = COLORS.cyan
+    ctx.fillText('MP:', barX, mpY + 9)
+    drawSegmentedBar(barX + 18, mpY, barW, barH, 100, COLORS.cyan)
+
+    // 레벨 표시
+    ctx.fillStyle = COLORS.textMain
+    ctx.font = 'bold 10px "Outfit", sans-serif'
+    ctx.fillText('Lv.1', barX, mpY + 32)
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 우측 상단: Tactical Map
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const mapW = 110
+    const mapH = 110
+    const mapX = width - mapW - 15
+    const mapY = 15
+
+    const { contentY: mapContentY, contentH: mapContentH } = drawPanel(mapX, mapY, mapW, mapH, 'TACTICAL MAP', themeColor)
+
+    // 미니맵 배경 (그리드)
+    ctx.strokeStyle = `${themeColor}20`
+    ctx.lineWidth = 0.5
+    const gridSize = 15
+    for (let gx = mapX + 4; gx < mapX + mapW - 4; gx += gridSize) {
+      ctx.beginPath()
+      ctx.moveTo(gx, mapContentY)
+      ctx.lineTo(gx, mapContentY + mapContentH)
+      ctx.stroke()
+    }
+    for (let gy = mapContentY; gy < mapContentY + mapContentH; gy += gridSize) {
+      ctx.beginPath()
+      ctx.moveTo(mapX + 4, gy)
+      ctx.lineTo(mapX + mapW - 4, gy)
+      ctx.stroke()
+    }
+
+    // 플레이어 위치 (중앙 점)
+    ctx.fillStyle = themeColor
+    ctx.beginPath()
+    ctx.arc(mapX + mapW / 2, mapContentY + mapContentH / 2, 4, 0, Math.PI * 2)
+    ctx.fill()
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 하단 중앙: Skill Modules
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const skillW = 180
+    const skillH = 45
+    const skillX = (width - skillW) / 2
+    const skillY = height - skillH - 15
+
+    const { contentY: skillContentY } = drawPanel(skillX, skillY, skillW, skillH, 'MODULES', themeColor)
+
+    // 스킬 슬롯
+    const slotSize = 22
+    const slotGap = 6
+    const totalSlotsW = slotSize * 4 + slotGap * 3
+    const slotsStartX = skillX + (skillW - totalSlotsW) / 2
+
+    for (let i = 0; i < 4; i++) {
+      const slotX = slotsStartX + i * (slotSize + slotGap)
+      ctx.strokeStyle = COLORS.borderInner
+      ctx.lineWidth = 1
+      ctx.strokeRect(slotX, skillContentY, slotSize, slotSize)
+
+      // 슬롯 번호
+      ctx.fillStyle = COLORS.textDim
+      ctx.font = '9px "Outfit", sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(`${i + 1}`, slotX + slotSize / 2, skillContentY + 14)
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 좌측 하단: System Log
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const logW = 170
+    const logH = 85
+    const logX = 15
+    const logY = height - logH - 15
+
+    const { contentY: logContentY } = drawPanel(logX, logY, logW, logH, 'SYSTEM LOG', themeColor)
+
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = '8px "JetBrains Mono", monospace'
+    ctx.textAlign = 'left'
+    const logs = [
+      '> Neural link established.',
+      '> Sync rate: 98.4%',
+      `> Scenario: ${scenario}`,
+      isDanger ? '> Threat level: CRITICAL' : '> Threat level: NORMAL',
+    ]
+    logs.forEach((log, i) => {
+      if (i === 3) ctx.fillStyle = themeColor
+      ctx.fillText(log, logX + 6, logContentY + 10 + i * 12)
+    })
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 우측 하단: Quick Access
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const quickW = 130
+    const quickH = 55
+    const quickX = width - quickW - 15
+    const quickY = height - quickH - 15
+
+    const { contentY: quickContentY } = drawPanel(quickX, quickY, quickW, quickH, 'QUICK', themeColor)
+
+    // 퀵 슬롯
+    const qSlotSize = 20
+    const qGap = 5
+    const qTotalW = qSlotSize * 4 + qGap * 3
+    const qStartX = quickX + (quickW - qTotalW) / 2
+
+    for (let i = 0; i < 4; i++) {
+      const qx = qStartX + i * (qSlotSize + qGap)
+      ctx.strokeStyle = COLORS.borderInner
+      ctx.lineWidth = 1
+      ctx.strokeRect(qx, quickContentY + 3, qSlotSize, qSlotSize)
+      ctx.fillStyle = COLORS.textDim
+      ctx.font = '8px "Outfit", sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(`${i + 1}`, qx + qSlotSize / 2, quickContentY + 15)
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 마우스 크로스헤어 (있는 경우)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if (mouse && mouse.x > 0 && mouse.y > 0) {
+      const mx = mouse.x
+      const my = mouse.y
+
+      ctx.strokeStyle = themeColor
+      ctx.lineWidth = 1.5
+      ctx.globalAlpha = 0.8
+
+      // 십자선
+      ctx.beginPath()
+      ctx.moveTo(mx - 15, my)
+      ctx.lineTo(mx - 5, my)
+      ctx.moveTo(mx + 5, my)
+      ctx.lineTo(mx + 15, my)
+      ctx.moveTo(mx, my - 15)
+      ctx.lineTo(mx, my - 5)
+      ctx.moveTo(mx, my + 5)
+      ctx.lineTo(mx, my + 15)
+      ctx.stroke()
+
+      // 중앙 점
+      ctx.beginPath()
+      ctx.arc(mx, my, 2, 0, Math.PI * 2)
+      ctx.fillStyle = themeColor
+      ctx.fill()
+
+      ctx.globalAlpha = 1
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 코너 프레임 (ARWES 스타일)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const cornerSize = 30
+    ctx.strokeStyle = `${themeColor}60`
+    ctx.lineWidth = 1.5
+
+    // 좌상단
+    ctx.beginPath()
+    ctx.moveTo(0, cornerSize)
+    ctx.lineTo(0, 0)
+    ctx.lineTo(cornerSize, 0)
+    ctx.stroke()
+
+    // 우상단
+    ctx.beginPath()
+    ctx.moveTo(width - cornerSize, 0)
+    ctx.lineTo(width, 0)
+    ctx.lineTo(width, cornerSize)
+    ctx.stroke()
+
+    // 좌하단
+    ctx.beginPath()
+    ctx.moveTo(0, height - cornerSize)
+    ctx.lineTo(0, height)
+    ctx.lineTo(cornerSize, height)
+    ctx.stroke()
+
+    // 우하단
+    ctx.beginPath()
+    ctx.moveTo(width - cornerSize, height)
+    ctx.lineTo(width, height)
+    ctx.lineTo(width, height - cornerSize)
+    ctx.stroke()
+
+    // 시간 기반 애니메이션 효과 (코너 글로우)
+    const pulse = 0.5 + Math.sin(time * 2) * 0.2
+    ctx.globalAlpha = pulse
+    ctx.strokeStyle = themeColor
+    ctx.lineWidth = 2
+
+    ctx.beginPath()
+    ctx.moveTo(5, 5 + cornerSize / 2)
+    ctx.lineTo(5, 5)
+    ctx.lineTo(5 + cornerSize / 2, 5)
     ctx.stroke()
 
     ctx.globalAlpha = 1

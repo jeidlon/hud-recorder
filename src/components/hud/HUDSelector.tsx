@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link2, Check, Eye, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -31,6 +31,13 @@ interface HUDSelectorProps {
 // 미리보기 모달 컴포넌트
 function PreviewModal({ preset, onClose }: { preset: HUDPreset; onClose: () => void }) {
   const HUDComponent = preset.component
+  const [showHint, setShowHint] = useState(true)
+
+  // 3초 후 힌트 페이드아웃
+  useEffect(() => {
+    const timer = setTimeout(() => setShowHint(false), 3000)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <motion.div
@@ -84,12 +91,22 @@ function PreviewModal({ preset, onClose }: { preset: HUDPreset; onClose: () => v
             />
           )}
 
-          {/* 안내 텍스트 */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-sm border border-white/10">
-            <span className="text-sm text-zinc-300">
-              마우스를 움직이고 <span className="text-blue-400 font-medium">클릭</span>하여 테스트
-            </span>
-          </div>
+          {/* 안내 텍스트 - 3초 후 페이드아웃 */}
+          <AnimatePresence>
+            {showHint && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.5 }}
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-sm border border-white/10"
+              >
+                <span className="text-sm text-zinc-300">
+                  마우스를 움직이고 <span className="text-blue-400 font-medium">클릭</span>하여 테스트
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* 설명 */}
@@ -97,6 +114,67 @@ function PreviewModal({ preset, onClose }: { preset: HUDPreset; onClose: () => v
           <h4 className="text-sm font-medium text-zinc-200 mb-2">{preset.name}</h4>
           <p className="text-xs text-zinc-400">{preset.description}</p>
         </div>
+
+        {/* Hexa-Tactical 키 조작법 */}
+        {preset.id === 'hexa-tactical' && (
+          <div className="mt-3 p-4 rounded-lg bg-zinc-900/80 border border-cyan-500/20">
+            <h4 className="text-xs font-medium text-cyan-400 mb-3">⌨️ 키 조작법</h4>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+              {/* 시나리오 */}
+              <div className="col-span-2 text-zinc-500 font-medium mb-1">시나리오</div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">`</kbd>
+                <span className="text-zinc-400">온보딩 (접속 애니메이션)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">1</kbd>
+                <span className="text-zinc-400">Normal 모드</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">2</kbd>
+                <span className="text-zinc-400">몬스터 출현</span>
+              </div>
+              
+              {/* 불 효과 */}
+              <div className="col-span-2 text-zinc-500 font-medium mt-2 mb-1">🔥 불 효과 (12초 후 자동 종료)</div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">F</kbd>
+                <span className="text-zinc-400">루비안 불 토글</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">G</kbd>
+                <span className="text-zinc-400">수빈사랑 불 토글</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">H</kbd>
+                <span className="text-zinc-400">둘 다 토글</span>
+              </div>
+
+              {/* 몬스터 모드 액션 */}
+              <div className="col-span-2 text-zinc-500 font-medium mt-2 mb-1">⚔️ 몬스터 모드 (2번 상태)</div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">좌클릭</kbd>
+                <span className="text-zinc-400">타겟팅 UI</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">좌클릭 홀드</kbd>
+                <span className="text-zinc-400">타겟 따라가기</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">우클릭</kbd>
+                <span className="text-zinc-400">히트마커 (FPS)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">D</kbd>
+                <span className="text-zinc-400">피격 (HP -1칸)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-zinc-300 font-mono">K</kbd>
+                <span className="text-zinc-400">즉시 사망</span>
+              </div>
+            </div>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   )

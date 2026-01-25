@@ -27,6 +27,23 @@ export interface KeyboardEventData {
   altKey: boolean
 }
 
+// 애니메이션 이벤트 (Theatre.js 연동)
+export interface AnimationEventRecord {
+  timestamp: number
+  elementId: string
+  type: 'enter' | 'exit' | 'trigger'
+  preset?: string
+  duration?: number
+  data?: Record<string, unknown>
+}
+
+// 🎬 HUD 이벤트 (Event Sourcing)
+export interface HUDEventRecord {
+  timestamp: number
+  type: string
+  payload: Record<string, unknown>
+}
+
 // 전체 녹화 세션
 export interface RecordingSession {
   id: string
@@ -44,6 +61,8 @@ export interface RecordingSession {
   }
   inputLog: InputEvent[]
   hudStateLog: HUDStateSnapshot[] // HUD에서 받은 상태들
+  animationEvents?: AnimationEventRecord[] // 🎬 애니메이션 이벤트 로그
+  hudEvents?: HUDEventRecord[] // 🎬 HUD 상태 변경 이벤트 (Event Sourcing)
 }
 
 // HUD 상태 스냅샷 (Phase 2의 HUDState 확장)

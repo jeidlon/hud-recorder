@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Outfit';
+  src: url('/fonts/Outfit-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'AstaSans';
+  src: url('/fonts/AstaSans-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+}
+
 @theme {
   /* 배경 */
   --color-bg-primary: #09090b;
@@ -27,6 +41,46 @@
       box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
     }
   }
+}
+
+/* 온보딩 애니메이션 키프레임 */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes sound-wave {
+  0% { height: 10%; }
+  50% { height: 100%; }
+  100% { height: 10%; }
+}
+
+@keyframes slide-up-sheet {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes ui-reveal {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px) scale(0.95); 
+    filter: blur(10px);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1); 
+    filter: blur(0);
+  }
+}
+
+/* 스피너 애니메이션 */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.font-black-han {
+  font-family: "Black Han Sans", sans-serif;
 }
 
 /* 글로벌 스타일 */

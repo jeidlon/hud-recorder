@@ -196,6 +196,7 @@ export class WebGPUCompositor {
   // Uniform buffer for effects
   private uniformBuffer: any  // GPUBuffer
   private uniformData: Float32Array
+  private hasEffects: boolean  // 효과 사용 여부
 
   private frameIndex = 0
 
@@ -206,7 +207,8 @@ export class WebGPUCompositor {
     outputCanvas: OffscreenCanvas,
     context: any,
     uniformBuffer: any,
-    config: WebGPUCompositorConfig
+    config: WebGPUCompositorConfig,
+    hasEffects: boolean
   ) {
     this.device = device
     this.pipeline = pipeline
@@ -215,6 +217,7 @@ export class WebGPUCompositor {
     this.context = context
     this.uniformBuffer = uniformBuffer
     this.config = config
+    this.hasEffects = hasEffects
 
     // [time, chromatic, bloom, scanlines, vignette, noise, resX, resY]
     this.uniformData = new Float32Array(8)
@@ -255,7 +258,7 @@ export class WebGPUCompositor {
     })
 
     // 셰이더 모듈 생성 (효과가 있으면 복잡한 셰이더, 없으면 단순 셰이더)
-    const hasEffects = effects && Object.values(effects).some(v => v)
+    const hasEffects = !!(effects && Object.values(effects).some(v => v))
     const shaderCode = hasEffects ? COMPOSITOR_SHADER : SIMPLE_COMPOSITOR_SHADER
 
     const shaderModule = device.createShaderModule({
@@ -295,6 +298,7 @@ export class WebGPUCompositor {
     console.log('[WebGPUCompositor] Initialized')
     console.log(`[WebGPUCompositor] Resolution: ${width}x${height}`)
     console.log('[WebGPUCompositor] Effects:', effects)
+    console.log('[WebGPUCompositor] Using effects shader:', hasEffects)
 
     return new WebGPUCompositor(
       device,
@@ -303,7 +307,8 @@ export class WebGPUCompositor {
       outputCanvas,
       context,
       uniformBuffer,
-      config
+      config,
+      hasEffects
     )
   }
 
@@ -317,9 +322,11 @@ export class WebGPUCompositor {
   ): VideoFrame {
     const { device, pipeline, sampler, context, config } = this
 
-    // Uniform 업데이트
-    this.uniformData[0] = this.frameIndex / 60 // time in seconds
-    device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData)
+    // Uniform 업데이트 (효과 셰이더일 때만)
+    if (this.hasEffects) {
+      this.uniformData[0] = this.frameIndex / 60 // time in seconds
+      device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData)
+    }
 
     // 비디오 텍스처 생성 (external texture)
     const videoTexture = device.importExternalTexture({
@@ -350,15 +357,21 @@ export class WebGPUCompositor {
       })
     }
 
-    // 바인드 그룹 생성
+    // 바인드 그룹 생성 (효과 사용 여부에 따라 다른 엔트리)
+    const bindGroupEntries: any[] = [
+      { binding: 0, resource: videoTexture },
+      { binding: 1, resource: hudTexture.createView() },
+      { binding: 2, resource: sampler },
+    ]
+    
+    // 효과 셰이더일 때만 uniform buffer 바인딩 추가
+    if (this.hasEffects) {
+      bindGroupEntries.push({ binding: 3, resource: { buffer: this.uniformBuffer } })
+    }
+    
     const bindGroup = device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: videoTexture },
-        { binding: 1, resource: hudTexture.createView() },
-        { binding: 2, resource: sampler },
-        { binding: 3, resource: { buffer: this.uniformBuffer } },
-      ],
+      entries: bindGroupEntries,
     })
 
     // 렌더 패스 실행

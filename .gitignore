@@ -3,6 +3,14 @@ node_modules/
 
 # Build output
 dist/
+out/
+
+# Remotion output
+*.mp4
+*.webm
+
+# Uploads (user uploaded videos)
+public/uploads/
 
 # Environment
 .env
@@ -27,3 +35,6 @@ npm-debug.log*
 .vercel/
 
 .vercel
+
+# Large assets (optional - uncomment if needed)
+# public/fire-seq/

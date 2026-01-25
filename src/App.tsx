@@ -11,8 +11,8 @@ import { VideoPlayer } from '@/components/video/VideoPlayer'
 import { HUDContainer } from '@/components/hud/HUDContainer'
 import { HUDSelector, isInlineHUDUrl, getPresetIdFromInlineUrl } from '@/components/hud/HUDSelector'
 import { getPresetById } from '@/presets'
-import { ControlPanel, type ControlPanelHandle } from '@/components/controls/ControlPanel'
-import { WebGPUSettings } from '@/components/controls/WebGPUSettings'
+import { RecordControlPanel, type RecordControlPanelHandle } from '@/components/controls/RecordControlPanel'
+import { ExportPanel } from '@/components/controls/ExportPanel'
 import { checkWebCodecsSupport } from '@/utils/checkSupport'
 import { useAppStore } from '@/store/useAppStore'
 import { cn } from '@/lib/utils'
@@ -35,6 +35,7 @@ function App() {
     isRecording,
     currentTime,
     recordingSession,
+    hudExportState,
     setVideoFile,
     setVideoMetadata,
     setHudUrl,
@@ -48,8 +49,8 @@ function App() {
 
   // 비디오 + HUD 컨테이너 ref (녹화 대상)
   const containerRef = useRef<HTMLDivElement>(null)
-  // ControlPanel ref (외부에서 녹화 종료 호출용)
-  const controlPanelRef = useRef<ControlPanelHandle>(null)
+  // RecordControlPanel ref (외부에서 녹화 종료 호출용)
+  const controlPanelRef = useRef<RecordControlPanelHandle>(null)
 
   // HUD 상태 업데이트 콜백
   const hudStateCallbackRef = useRef<((state: HUDState) => void) | null>(null)
@@ -312,6 +313,7 @@ function App() {
                         isPlaying={isPlaying}
                         onStateUpdate={handleHUDStateUpdate}
                         onReady={() => setHudReady(true)}
+                        externalState={hudExportState ?? undefined}
                       />
                     ) : !isInlineHUD ? (
                       // 외부 HUD (iframe)
@@ -330,17 +332,24 @@ function App() {
                 )}
               </motion.div>
 
-              {/* 컨트롤 패널 */}
-              <ControlPanel
-                ref={controlPanelRef}
-                containerRef={containerRef}
-                onHUDStateUpdate={(callback) => {
-                  hudStateCallbackRef.current = callback
-                }}
-              />
+              {/* 컨트롤 영역: 좌측(Record) / 우측(Export) 분리 배치 */}
+              <div className="flex items-start gap-4">
+                {/* 좌측: Record/Play 컨트롤 */}
+                <div className="flex-shrink-0">
+                  <RecordControlPanel
+                    ref={controlPanelRef}
+                    containerRef={containerRef}
+                    onHUDStateUpdate={(callback) => {
+                      hudStateCallbackRef.current = callback
+                    }}
+                  />
+                </div>
 
-              {/* WebGPU 렌더링 설정 */}
-              <WebGPUSettings />
+                {/* 우측: Export 패널 (PNG/MP4 + 설정 + 로그) */}
+                <div className="flex-1">
+                  <ExportPanel />
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

@@ -18,12 +18,21 @@
 
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Crosshair, Clock, Gamepad2, Sparkles, Cpu } from 'lucide-react'
+import { Crosshair, Clock, Gamepad2, Sparkles, Cpu, Hexagon } from 'lucide-react'
 import { TargetLockHUD } from './TargetLockHUD'
 import { DreamPersonaHUD } from './DreamPersonaHUD'
 import { DreamPersonaRemasterHUD } from './dreamPersonaRemaster/DreamPersonaRemasterHUD'
 import { CyberpunkHUD } from './remotion/CyberpunkHUD'
+import { HexaTacticalHUD } from './hexaTactical'
 import type { HUDState } from '@/types/hud-protocol'
+
+// 외부에서 주입되는 HUD 상태 (오프라인 렌더링용)
+export interface ExternalHUDState {
+  timestamp: number
+  mouse: { x: number; y: number }
+  scenario?: string
+  customData?: Record<string, unknown>
+}
 
 // HUD 컴포넌트의 공통 Props 인터페이스
 export interface HUDComponentProps {
@@ -32,6 +41,8 @@ export interface HUDComponentProps {
   isPlaying?: boolean
   onStateUpdate?: (state: HUDState) => void
   onReady?: () => void
+  /** 오프라인 렌더링 시 외부에서 주입되는 상태 */
+  externalState?: ExternalHUDState
 }
 
 // 프리셋 정의 인터페이스
@@ -51,12 +62,20 @@ export interface HUDPreset {
  */
 export const hudPresets: HUDPreset[] = [
   {
+    id: 'hexa-tactical',
+    name: 'Hexa-Tactical OS 98',
+    description: '줄콘티 Scene 8~12 대응 | Win98 홀로그램 크롬',
+    icon: Hexagon,
+    component: HexaTacticalHUD,
+    available: true,
+  },
+  {
     id: 'cyberpunk',
     name: 'Cyberpunk HUD',
     description: 'Remotion 스타일 | 스프링 애니메이션 | 글리치 효과',
     icon: Cpu,
     component: CyberpunkHUD,
-    available: true,
+    available: false, // 비활성화
   },
   {
     id: 'dream-persona-remaster',
@@ -64,7 +83,7 @@ export const hudPresets: HUDPreset[] = [
     description: '5가지 시나리오 | ARWES + react-vfx 셰이더',
     icon: Sparkles,
     component: DreamPersonaRemasterHUD,
-    available: true,
+    available: false, // 비활성화
   },
   {
     id: 'dream-persona',
@@ -72,7 +91,7 @@ export const hudPresets: HUDPreset[] = [
     description: '7가지 시나리오 | 레트로-퓨처리스틱',
     icon: Gamepad2,
     component: DreamPersonaHUD,
-    available: true,
+    available: false, // 비활성화
   },
   {
     id: 'target-lock',
@@ -80,7 +99,7 @@ export const hudPresets: HUDPreset[] = [
     description: '크로스헤어 + 타겟 락온',
     icon: Crosshair,
     component: TargetLockHUD,
-    available: true,
+    available: false, // 비활성화
   },
   // ─────────────────────────────────────────────
   // 새 프리셋은 여기에 추가하세요!
